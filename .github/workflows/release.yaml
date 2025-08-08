@@ -1,0 +1,22 @@
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+name: Release Syntax
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make deps
+      - run: make generate
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body: Release tag ${{ github.ref_name }}
+          files: |
+            gen/rascript.tmLanguage
