@@ -1,0 +1,11 @@
+on:
+  push:
+
+name: Test Syntax
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make deps
+      - run: make generate
