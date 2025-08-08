@@ -1,2 +1,1 @@
-*.tmLanguage
-*.sublime-package
+gen/
