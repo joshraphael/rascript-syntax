@@ -19,5 +19,5 @@ jobs:
         with:
           body: Release tag ${{ github.ref_name }}
           files: |
-            rascript.tmLanguage.json
+            gen/rascript.tmLanguage.json
             gen/rascript.tmLanguage

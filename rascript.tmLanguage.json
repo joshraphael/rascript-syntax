@@ -1,5 +1,6 @@
 {
     "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    "$version": "<GRAMMAR_VERSION>",
     "name": "RAScript",
     "patterns": [
         {
@@ -47,55 +48,35 @@
                 }
             ]
         },
-        "comments": {
+        "controls": {
             "patterns": [
                 {
-                    "begin": "/\\*",
-                    "captures": {
-                        "0": {
-                            "name": "punctuation.definition.comment.block.rascript"
-                        }
-                    },
-                    "end": "\\*/",
-                    "name": "comment.block.rascript"
-                },
-                {
-                    "begin": "//",
-                    "beginCaptures": {
-                        "0": {
-                            "name": "punctuation.definition.comment.single.rascript"
-                        }
-                    },
-                    "end": "$",
-                    "name": "comment.line.double-slash.rascript"
+                    "name": "keyword.control.rascript",
+                    "match": "\\b(if|else|for|in|return)\\b"
                 }
             ]
         },
-        "header": {
+        "booleans": {
+            "patterns": [{
+                "name": "constant.language.boolean.rascript",
+                "match": "\\b(true|false)\\b"
+            }]
+        },
+        "strings": {
+            "patterns": [{
+                "name": "string.quoted.double.rascript",
+                "match": "(?:\".*?\")"
+            }]
+        },
+        "numbers": {
             "patterns": [
                 {
-                    "name": "comment.line.double-slash.rascript",
-                    "match": "^//\\s*(#ID)\\s*=\\s*(\\d+)$",
-                    "captures": {
-                        "1": {
-                            "name": "keyword.other.id.rascript"
-                        },
-                        "2": {
-                            "name": "constant.numeric.id.rascript"
-                        }
-                    }
+                    "name": "constant.numeric.decimal.rascript",
+                    "match": "\\b[0-9]+\\b"
                 },
                 {
-                    "name": "comment.line.double-slash.rascript",
-                    "match": "^//\\s*(#MinimumVersion)\\s*=\\s*(\\d+(\\.\\d)?)$",
-                    "captures": {
-                        "1": {
-                            "name": "keyword.other.version.rascript"
-                        },
-                        "2": {
-                            "name": "constant.numeric.version.rascript"
-                        }
-                    }
+                    "name": "constant.numeric.hexadecimal.rascript",
+                    "match": "(?i)\\$\\b\\h+\\b|\\b0x\\h+\\b"
                 }
             ]
         },
@@ -154,14 +135,6 @@
                 }
             ]
         },
-        "controls": {
-            "patterns": [
-                {
-                    "name": "keyword.control.rascript",
-                    "match": "\\b(if|else|for|in|return)\\b"
-                }
-            ]
-        },
         "function-names": {
             "patterns": [
                 {
@@ -174,6 +147,58 @@
                             "name": "entity.name.function.rascript"
                         }
                     }
+                }
+            ]
+        },
+        "header": {
+            "patterns": [
+                {
+                    "name": "comment.line.double-slash.rascript",
+                    "match": "^//\\s*(#ID)\\s*=\\s*(\\d+)$",
+                    "captures": {
+                        "1": {
+                            "name": "keyword.other.id.rascript"
+                        },
+                        "2": {
+                            "name": "constant.numeric.id.rascript"
+                        }
+                    }
+                },
+                {
+                    "name": "comment.line.double-slash.rascript",
+                    "match": "^//\\s*(#MinimumVersion)\\s*=\\s*(\\d+(\\.\\d)?)$",
+                    "captures": {
+                        "1": {
+                            "name": "keyword.other.version.rascript"
+                        },
+                        "2": {
+                            "name": "constant.numeric.version.rascript"
+                        }
+                    }
+                }
+            ]
+        },
+        "comments": {
+            "patterns": [
+                {
+                    "begin": "/\\*",
+                    "captures": {
+                        "0": {
+                            "name": "punctuation.definition.comment.block.rascript"
+                        }
+                    },
+                    "end": "\\*/",
+                    "name": "comment.block.rascript"
+                },
+                {
+                    "begin": "//",
+                    "beginCaptures": {
+                        "0": {
+                            "name": "punctuation.definition.comment.single.rascript"
+                        }
+                    },
+                    "end": "$",
+                    "name": "comment.line.double-slash.rascript"
                 }
             ]
         },
@@ -210,30 +235,6 @@
                     }
                 }
             ]
-        },
-        "numbers": {
-            "patterns": [
-                {
-                    "name": "constant.numeric.decimal.rascript",
-                    "match": "\\b[0-9]+\\b"
-                },
-                {
-                    "name": "constant.numeric.hexadecimal.rascript",
-                    "match": "(?i)\\$\\b\\h+\\b|\\b0x\\h+\\b"
-                }
-            ]
-        },
-        "booleans": {
-            "patterns": [{
-                "name": "constant.language.boolean.rascript",
-                "match": "\\b(true|false)\\b"
-            }]
-        },
-        "strings": {
-            "patterns": [{
-                "name": "string.quoted.double.rascript",
-                "match": "(?:\".*?\")"
-            }]
         }
     },
     "scopeName": "source.rascript"

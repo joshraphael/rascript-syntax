@@ -10,7 +10,7 @@ clean:
 	rm -f ~/.config/sublime-text/Packages/User/rascript.tmLanguage
 
 generate: clean
-	plistutil -f xml -i rascript.tmLanguage.json -o gen/rascript.tmLanguage
+	./scripts/generate.sh
 
 sublime: generate
 	cd gen && zip -r RAScript.sublime-package rascript.tmLanguage
