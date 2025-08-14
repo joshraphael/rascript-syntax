@@ -14,3 +14,7 @@ run `make generate` to create the grammar files in the `gen` folder. The current
 ## Download
 
 Grab the latest generated files on the [release](https://github.com/joshraphael/rascript-syntax/releases/latest) page.
+
+## Projects Using rascript-syntax
+- [vscode-rascript](https://github.com/joshraphael/vscode-rascript) - VSCode language client for RAScript.
+- [sublime-rascript](https://github.com/joshraphael/sublime-rascript) - SublimeText language client for RAScript.
