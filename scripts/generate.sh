@@ -9,3 +9,4 @@ fi
 sed "s/<GRAMMAR_VERSION>/$VERSION/g" rascript.tmLanguage.json > gen/rascript.tmLanguage.json
 plistutil -f xml -i gen/rascript.tmLanguage.json -o gen/rascript.tmLanguage
 sed "s/<GRAMMAR_VERSION>/$VERSION/g" RAScript.xml > gen/RAScript.xml
+sed "s/<GRAMMAR_VERSION>/$VERSION/g" rascript.js > gen/rascript.js

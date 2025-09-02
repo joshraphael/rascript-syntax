@@ -22,3 +22,4 @@ jobs:
             gen/rascript.tmLanguage.json
             gen/rascript.tmLanguage
             gen/RAScript.xml
+            gen/rascript.js
