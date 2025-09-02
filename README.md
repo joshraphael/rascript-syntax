@@ -11,6 +11,7 @@ run `make generate` to create the grammar files in the `gen` folder. The current
 * rascript.tmLanguage.json -- vscode, linguist
 * rascript.tmLanguage -- sublime
 * RAScript.xml -- Notepad++
+* rascript.js -- highlight.js
 
 ## Download
 
@@ -20,3 +21,4 @@ Grab the latest generated files on the [release](https://github.com/joshraphael/
 - [vscode-rascript](https://github.com/joshraphael/vscode-rascript) - VSCode language client for RAScript.
 - [sublime-rascript](https://github.com/joshraphael/sublime-rascript) - SublimeText language client for RAScript.
 - [npp-rascript](https://github.com/joshraphael/npp-rascript) - Notepad++ language client for RAScript.
+- [highlightjs-rascript](https://github.com/joshraphael/highlightjs-rascript) - highlight.js grammar definition for RAScript.
