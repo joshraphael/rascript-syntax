@@ -62,7 +62,7 @@
             <WordsStyle name="DARK-HEADER-MINIMUMVERSION-VALUE" styleID="41" fgColor="B5CEA8" />
         </LexerType>
     </LexerStyles>
-    <RAScript version="<GRAMMAR_VERSION>">
+    <RAScript version="_GRAMMAR_VERSION_">
         <Token name="Variables" type="NORMAL" regex="([a-zA-Z_][\w]*)[\t ]*" lightStyle="1" darkStyle="2" />
         <Token name="Controls" type="NORMAL" regex="\b(if|else|for|in|return)\b" lightStyle="3" darkStyle="4" />
         <Token name="This" type="NORMAL" regex="\b(this)\b" lightStyle="5" darkStyle="6" />
