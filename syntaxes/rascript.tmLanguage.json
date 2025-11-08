@@ -1,6 +1,6 @@
 {
     "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
-    "grammar_version": "_GRAMMAR_VERSION_",
+    "version": "_GRAMMAR_VERSION_",
     "name": "RAScript",
     "patterns": [
         {
