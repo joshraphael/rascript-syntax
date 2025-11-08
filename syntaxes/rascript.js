@@ -3,7 +3,7 @@ Language: RAScript
 Author: Joshua Raphael
 Description: Syntax grammar for RAScript, a RetroAchievements.org DSL
 Category: syntax
-Version: <GRAMMAR_VERSION>
+Version: _GRAMMAR_VERSION_
 */
 
 function ImportantWordRegex() {

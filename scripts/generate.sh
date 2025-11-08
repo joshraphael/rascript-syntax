@@ -6,7 +6,7 @@ if [[ ${GITHUB_REF_NAME} != "" ]]; then
     VERSION="$GITHUB_REF_NAME"
 fi
 
-sed "s/<GRAMMAR_VERSION>/$VERSION/g" rascript.tmLanguage.json > gen/rascript.tmLanguage.json
+sed "s/_GRAMMAR_VERSION_/$VERSION/g" syntaxes/rascript.tmLanguage.json > gen/rascript.tmLanguage.json
 plistutil -f xml -i gen/rascript.tmLanguage.json -o gen/rascript.tmLanguage
-sed "s/<GRAMMAR_VERSION>/$VERSION/g" RAScript.xml > gen/RAScript.xml
-sed "s/<GRAMMAR_VERSION>/$VERSION/g" rascript.js > gen/rascript.js
+sed "s/_GRAMMAR_VERSION_/$VERSION/g" syntaxes/RAScript.xml > gen/RAScript.xml
+sed "s/_GRAMMAR_VERSION_/$VERSION/g" syntaxes/rascript.js > gen/rascript.js
