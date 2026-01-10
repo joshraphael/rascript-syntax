@@ -22,3 +22,4 @@ Grab the latest generated files on the [release](https://github.com/joshraphael/
 - [sublime-rascript](https://github.com/joshraphael/sublime-rascript) - SublimeText language client for RAScript.
 - [npp-rascript](https://github.com/joshraphael/npp-rascript) - Notepad++ language client for RAScript.
 - [highlightjs-rascript](https://github.com/joshraphael/highlightjs-rascript) - highlight.js grammar definition for RAScript.
+- [linguist](https://github.com/github-linguist/linguist) - Github language detection library.
