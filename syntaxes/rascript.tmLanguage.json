@@ -63,10 +63,33 @@
             }]
         },
         "strings": {
-            "patterns": [{
-                "name": "string.quoted.double.rascript",
-                "match": "(?:\".*?\")"
-            }]
+            "patterns": [
+                {
+                    "begin": "\"",
+                    "end": "\"",
+                    "name": "string.quoted.double.rascript",
+                    "patterns": [
+                        {
+                            "match": "\\\\.",
+                            "name": "constant.character.escape.rascript"
+                        },
+                        {
+                            "match": "({)([0-9]+)(})",
+                            "captures": {
+                                "1": {
+                                    "name": "punctuation.definition.template-expression.begin.rascript"
+                                },
+                                "2": {
+                                    "name": "variable.other.rascript"
+                                },
+                                "3": {
+                                    "name": "punctuation.definition.template-expression.end.rascript"
+                                }
+                            }
+                        }
+                    ]
+                }
+            ]
         },
         "numbers": {
             "patterns": [
