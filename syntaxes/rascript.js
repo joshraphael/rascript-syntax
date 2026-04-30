@@ -60,6 +60,7 @@ function ImportantWordRegex() {
         "array_contains",
         "array_reduce",
         "array_filter",
+        "field_map",
         "dictionary_contains_key",
         "any_of",
         "all_of",
