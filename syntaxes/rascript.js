@@ -39,6 +39,7 @@ function ImportantWordRegex() {
         "identity_transform",
         "ascii_string_equals",
         "unicode_string_equals",
+        "remembered",
         "repeated",
         "once",
         "tally",
