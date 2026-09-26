@@ -14,6 +14,9 @@
                     "include": "#controls"
                 },
                 {
+                    "include": "#function-definitions"
+                },
+                {
                     "include": "#booleans"
                 },
                 {
@@ -27,9 +30,6 @@
                 },
                 {
                     "include": "#class-definitions"
-                },
-                {
-                    "include": "#function-definitions"
                 },
                 {
                     "include": "#header"
@@ -103,10 +103,97 @@
                 }
             ]
         },
+        "nested_parens_generic": {
+            "begin": "\\(",
+            "end": "\\)",
+            "patterns": [
+                {
+                    "include": "$self"
+                },
+                {
+                    "include": "#booleans"
+                },
+                {
+                    "include": "#strings"
+                },
+                {
+                    "include": "#numbers"
+                },
+                {
+                    "include": "#function-names"
+                },
+                {
+                    "comment": "if we detect an assignment, mark the left hand side a parameter",
+                    "match": "(?<!\\=)\\s*(\\w+)\\s*(?=\\=)",
+                    "captures": {
+                        "1": {
+                            "name": "variable.parameter.rascript"
+                        }
+                    }
+                },
+                {
+                    "comment": "for the generic parameter list, mark everything else as a variable",
+                    "match": "\\w+",
+                    "name": "variable.other.rascript"
+                }
+            ]
+        },
+        "function-definitions": {
+            "begin": "(\\bfunction\\b)\\s*(\\w+)\\s*\\(",
+            "beginCaptures": {
+                "1" : {
+                    "name": "keyword.function.rascript"
+                },
+                "2": {
+                    "name": "entity.name.function.rascript"
+                }
+            },
+            "end": "\\)",
+            "patterns": [
+                {
+                    "include": "#nested_parens_generic"
+                },
+                {
+                    "include": "#booleans"
+                },
+                {
+                    "include": "#strings"
+                },
+                {
+                    "include": "#numbers"
+                },
+                {
+                    "include": "#function-names"
+                },
+                {
+                    "comment": "if we detect an assignment, mark the left hand side a parameter",
+                    "match": "(?<!\\=)\\s*(\\w+)\\s*(?=\\=)",
+                    "captures": {
+                        "1": {
+                            "name": "variable.parameter.rascript"
+                        }
+                    }
+                },
+                {
+                    "comment": "if the right hand side of the equals is NOT a function call, mark the word a variable",
+                    "match": "(?<=\\=)\\s*(\\w+)\\s*(?!\\()",
+                    "captures": {
+                        "1": {
+                            "name": "variable.other.rascript"
+                        }
+                    }
+                },
+                {
+                    "comment": "mark everything else as a parameter",
+                    "match": "\\w+",
+                    "name": "variable.parameter.rascript"
+                }
+            ]
+        },
         "function-names": {
             "patterns": [
                 {
-                    "match": "(\\w+)[\\t ]*\\(",
+                    "match": "(\\w+)\\s*(?=\\()",
                     "captures": {
                         "1": {
                             "name": "entity.name.function.rascript"
@@ -125,21 +212,6 @@
                         },
                         "2": {
                             "name": "entity.name.class.rascript"
-                        }
-                    }
-                }
-            ]
-        },
-        "function-definitions": {
-            "patterns": [
-                {
-                    "match": "(\\bfunction\\b)[\\t ]*([\\w]*)\\(",
-                    "captures": {
-                        "1": {
-                            "name": "keyword.function.rascript"
-                        },
-                        "2": {
-                            "name": "entity.name.function.rascript"
                         }
                     }
                 }
@@ -232,5 +304,6 @@
             ]
         }
     },
+    
     "scopeName": "source.rascript"
 }
