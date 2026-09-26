@@ -23,13 +23,13 @@
                     "include": "#numbers"
                 },
                 {
+                    "include": "#function-names"
+                },
+                {
                     "include": "#class-definitions"
                 },
                 {
                     "include": "#function-definitions"
-                },
-                {
-                    "include": "#function-names"
                 },
                 {
                     "include": "#header"
@@ -103,19 +103,28 @@
                 }
             ]
         },
+        "function-names": {
+            "patterns": [
+                {
+                    "match": "(\\w+)[\\t ]*\\(",
+                    "captures": {
+                        "1": {
+                            "name": "entity.name.function.rascript"
+                        }
+                    }
+                }
+            ]
+        },
         "class-definitions": {
             "patterns": [
                 {
-                    "match": "(\\bclass\\b)[\\t ]*(([a-zA-Z_][\\w]*)|(.+))",
+                    "match": "(\\bclass\\b)[\\t ]*([a-zA-Z_][\\w]*)",
                     "captures": {
                         "1": {
                             "name": "keyword.class.rascript"
                         },
-                        "3": {
+                        "2": {
                             "name": "entity.name.class.rascript"
-                        },
-                        "4": {
-                            "name": "invalid.illegal.identifier.rascript"
                         }
                     }
                 }
@@ -124,49 +133,12 @@
         "function-definitions": {
             "patterns": [
                 {
-                    "begin": "(\\bfunction\\b)[\\t ]*(([a-zA-Z_][\\w]*)|(.+))\\(",
-                    "beginCaptures": {
+                    "match": "(\\bfunction\\b)[\\t ]*([\\w]*)\\(",
+                    "captures": {
                         "1": {
                             "name": "keyword.function.rascript"
                         },
-                        "3": {
-                            "name": "entity.name.function.rascript"
-                        },
-                        "4": {
-                            "name": "invalid.illegal.identifier.rascript"
-                        }
-                    },
-                    "end": "\\)",
-                    "patterns": [
-                        {
-                            "match": "(?:[\\w]+\\s+[\\w]+)",
-                            "name": "invalid.illegal.identifier.rascript"
-                        },
-                        {
-                            "match": "(?:[^\\s\\,!]*[\\%\\!\\@\\#\\$\\%\\^\\&\\*\\-\\=\\+\\[\\]\\{\\}\\;\\:\\'\"\\.\\<\\>\\/\\?]+[^\\s\\,]*)",
-                            "name": "invalid.illegal.identifier.rascript"
-                        },
-                        {
-                            "match": "(?:[a-zA-Z_][\\w]*)",
-                            "name": "variable.parameter.rascript"
-                        },
-                        {
-                            "match": "(?:\\w+)",
-                            "name": "invalid.illegal.identifier.rascript"
-                        }
-                    ]
-                }
-            ]
-        },
-        "function-names": {
-            "patterns": [
-                {
-                    "match": "(([0-9][\\w+]*)|(\\w+))\\(",
-                    "captures": {
                         "2": {
-                            "name": "invalid.illegal.identifier.rascript"
-                        },
-                        "3": {
                             "name": "entity.name.function.rascript"
                         }
                     }
@@ -177,7 +149,7 @@
             "patterns": [
                 {
                     "name": "comment.line.double-slash.rascript",
-                    "match": "^//\\s*(#ID)\\s*=\\s*(\\d+)$",
+                    "match": "^//[\\t ]*(#ID)[\\t ]*=[\\t ]*(\\d+)$",
                     "captures": {
                         "1": {
                             "name": "keyword.other.id.rascript"
@@ -189,7 +161,7 @@
                 },
                 {
                     "name": "comment.line.double-slash.rascript",
-                    "match": "^//\\s*(#MinimumVersion)\\s*=\\s*(\\d+(\\.\\d)?)$",
+                    "match": "^//[\\t ]*(#MinimumVersion)[\\t ]*=[\\t ]*(\\d+(\\.\\d)?)$",
                     "captures": {
                         "1": {
                             "name": "keyword.other.version.rascript"
