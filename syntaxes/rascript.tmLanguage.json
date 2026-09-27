@@ -103,42 +103,8 @@
                 }
             ]
         },
-        "nested_parens_generic": {
-            "begin": "\\(",
-            "end": "\\)",
-            "patterns": [
-                {
-                    "include": "$self"
-                },
-                {
-                    "include": "#booleans"
-                },
-                {
-                    "include": "#strings"
-                },
-                {
-                    "include": "#numbers"
-                },
-                {
-                    "include": "#function-names"
-                },
-                {
-                    "comment": "if we detect an assignment, mark the left hand side a parameter",
-                    "match": "(?<!\\=)\\s*(\\w+)\\s*(?=\\=)",
-                    "captures": {
-                        "1": {
-                            "name": "variable.parameter.rascript"
-                        }
-                    }
-                },
-                {
-                    "comment": "for the generic parameter list, mark everything else as a variable",
-                    "match": "\\w+",
-                    "name": "variable.other.rascript"
-                }
-            ]
-        },
         "function-definitions": {
+            "comment": "force function keyword and function name with open parentheses on same line since this is a more complex capture. Go until functionsignature terminates (either { or =>)",
             "begin": "(\\bfunction\\b)\\s*(\\w+)\\s*\\(",
             "beginCaptures": {
                 "1" : {
@@ -148,10 +114,10 @@
                     "name": "entity.name.function.rascript"
                 }
             },
-            "end": "\\)",
+            "end": "\\{|\\=\\>",
             "patterns": [
                 {
-                    "include": "#nested_parens_generic"
+                    "include": "#inner-functions"
                 },
                 {
                     "include": "#booleans"
@@ -199,6 +165,16 @@
                             "name": "entity.name.function.rascript"
                         }
                     }
+                }
+            ]
+        },
+        "inner-functions": {
+            "comment": "this prevents the function argument parser section to ignore inner function variables being marked as parameters by just passing them over",
+            "begin": "\\(",
+            "end": "\\)",
+            "patterns": [
+                {
+                    "include": "$self"
                 }
             ]
         },
