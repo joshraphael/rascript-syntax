@@ -159,9 +159,12 @@
         "function-names": {
             "patterns": [
                 {
-                    "match": "(\\w+)\\s*(?=\\()",
+                    "match": "(\\b(byte|word|tbyte|dword|bit0|bit1|bit2|bit3|bit4|bit5|bit6|bit7|bit|low4|high4|bitcount|word_be|tbyte_be|dword_be|float|float_be|mbf32|mbf32_le|double32|double32_be|prev|prior|bcd|identity_transform|ascii_string_equals|unicode_string_equals|remembered|repeated|once|tally|deduct|never|unless|measured|trigger_when|disable_when|always_true|always_false|format|substring|length|range|array_push|array_pop|array_map|array_contains|array_reduce|array_filter|field_map|dictionary_contains_key|any_of|all_of|none_of|sum_of|tally_of|max_of|assert|achievement|rich_presence_display|rich_presence_value|rich_presence_lookup|rich_presence_ascii_string_lookup|rich_presence_macro|rich_presence_conditional_display|leaderboard|__ornext)\\b|(\\w+))\\s*(?=\\()",
                     "captures": {
-                        "1": {
+                        "2": {
+                            "name": "support.function.rascript"
+                        },
+                        "3": {
                             "name": "entity.name.function.rascript"
                         }
                     }
