@@ -327,8 +327,16 @@ def render_capture(root, target):
     starting from where the previous one ended, so text before the group
     would already be behind the search position. Lookbehind only checks it.
 
-    Returns None when the path to the group goes through an alternation or a
-    repeat; those are handled in later steps, and the capture is skipped.
+    Alternations on the way to the group: only the branch holding the group
+    can produce it, so the capture pattern uses just that branch. But in
+    a|(b) TextMate tries a first, so (b) only counts where a would not have
+    matched; a negative lookahead guard %(a)@! in front keeps that rule:
+      (?:(if)|(\w+))\(  target 2 -> %(%(if)\()@!\w+%(\()@=
+    The guard includes what follows the alternation ("rest"), because a only
+    wins if the whole regex can still match after it.
+
+    Returns None when the path to the group goes through a repeat; that is
+    handled in a later step, and the capture is skipped.
     """
     path, kinds = set(), set()
 
@@ -340,11 +348,13 @@ def render_capture(root, target):
             kinds.add(node[0])
         return hit
 
-    def split(node):
+    def split(node, rest):
         """Returns (before, group, after) for the part of the regex in node.
 
-        before is a list of (text, zero_width) items, so trailing anchors and
-        lookarounds can be kept out of the lookbehind (see below).
+        rest is the rendered text that follows node in the whole regex, used
+        by alternation guards. before is a list of (text, zero_width) items,
+        so trailing anchors and lookarounds can be kept out of the lookbehind
+        (see below).
         """
         kind = node[0]
         if kind == "group" and node[3] == target:
@@ -355,19 +365,25 @@ def render_capture(root, target):
             # split around the one item that leads to the target
             items = node[1]
             i = next(i for i, x in enumerate(items) if id(x) in path)
-            before, group, after = split(items[i])
-            return ([(render(x), zero_width(x)) for x in items[:i]] + before, group,
-                    after + "".join(map(render, items[i + 1:])))
+            after = "".join(map(render, items[i + 1:]))
+            before, group, a = split(items[i], after + rest)
+            return [(render(x), zero_width(x)) for x in items[:i]] + before, group, a + after
+        if kind == "alt":
+            # keep only the branch with the target, guarded by the ones before it
+            k = next(i for i, b in enumerate(node[1]) if id(b) in path)
+            guards = [("%(" + render(b) + rest + ")@!", True) for b in node[1][:k]]
+            before, group, after = split(node[1][k], rest)
+            return guards + before, group, after
         # otherwise a group wrapping the target; step inside it
         if node[1] in LOOKAROUND:
             raise ConvertError("captures inside lookarounds are not supported")
-        return split(node[2])
+        return split(node[2], rest)
 
     if not find(root):
         raise ConvertError(f"capture group {target} does not exist")
-    if kinds & {"alt", "rep"}:
-        return None  # TEMPORARY: alternations and repeats come in later steps
-    before, group, after = split(root)
+    if "rep" in kinds:
+        return None  # TEMPORARY: repeats come in a later step
+    before, group, after = split(root, "")
     # zero-width items at the end of the context (e.g. < in \b(\w+)) can stay
     # in front of the group instead of going in the lookbehind
     last = max((i for i, (_, zw) in enumerate(before) if not zw), default=-1)
