@@ -440,8 +440,12 @@ class Converter:
 
         order = []
         self.walk(self.top_patterns, order.append, set())
+        # When several rules could match at the same spot, TextMate uses the
+        # first one in the grammar but Vim uses the last one defined. Writing
+        # the rules in reverse makes Vim pick the same rule VS Code does, e.g.
+        # "if" is a control keyword, not the catch-all variable rule
         rules_out = []
-        for rule in order:
+        for rule in reversed(order):
             g, label = self.group_names[id(rule)], self.rule_labels[id(rule)]
             rules_out.append(f'" {label}')
             if "match" in rule:
@@ -471,7 +475,7 @@ class Converter:
                 '" version of the grammar\'s \\b); fixed here so the user\'s iskeyword',
                 '" setting can\'t change highlighting, e.g. matching "if" inside "my_if"',
                 "syntax iskeyword @,48-57,_,192-255", "syntax sync fromstart", ""]
-        out += ['" Rules'] + rules_out + [""]
+        out += ['" Rules: later definitions take priority'] + rules_out + [""]
         # one line per colored rule, e.g. "highlight default link rascriptControls Statement";
         # "default" lets a user's own highlight settings override these
         width = max((len(g) for g, _ in self.highlight_links), default=0)
