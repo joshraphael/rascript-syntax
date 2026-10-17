@@ -313,6 +313,73 @@ def render(node):
     return node[1]
 
 
+def render_capture(root, target):
+    r"""Writes a pattern that matches only capture group `target` of a regex.
+
+    The rest of the regex becomes context that must be present but is not
+    part of the match: what comes before the group is a lookbehind %(...)@<=,
+    what comes after it a lookahead %(...)@=. e.g. for (\bclass\b)[\t ]*(\w+):
+      target 1 -> <class>%([\t ]*%(\w+))@=
+      target 2 -> %(%(<class>)[\t ]*)@<=\w+
+
+    Why not just mark the group with Vim's \zs and \ze? A capture item is
+    contained in the rule's match, and Vim searches for contained items
+    starting from where the previous one ended, so text before the group
+    would already be behind the search position. Lookbehind only checks it.
+
+    Returns None when the path to the group goes through an alternation or a
+    repeat; those are handled in later steps, and the capture is skipped.
+    """
+    path, kinds = set(), set()
+
+    def find(node):
+        """Marks every node on the way from root down to the target group."""
+        hit = node[0] == "group" and node[3] == target or any(find(c) for c in children(node))
+        if hit:
+            path.add(id(node))
+            kinds.add(node[0])
+        return hit
+
+    def split(node):
+        """Returns (before, group, after) for the part of the regex in node.
+
+        before is a list of (text, zero_width) items, so trailing anchors and
+        lookarounds can be kept out of the lookbehind (see below).
+        """
+        kind = node[0]
+        if kind == "group" and node[3] == target:
+            group = render(node[2])
+            # a|b must stay grouped once other text is put around it
+            return [], "%(" + group + ")" if node[2][0] == "alt" else group, ""
+        if kind == "seq":
+            # split around the one item that leads to the target
+            items = node[1]
+            i = next(i for i, x in enumerate(items) if id(x) in path)
+            before, group, after = split(items[i])
+            return ([(render(x), zero_width(x)) for x in items[:i]] + before, group,
+                    after + "".join(map(render, items[i + 1:])))
+        # otherwise a group wrapping the target; step inside it
+        if node[1] in LOOKAROUND:
+            raise ConvertError("captures inside lookarounds are not supported")
+        return split(node[2])
+
+    if not find(root):
+        raise ConvertError(f"capture group {target} does not exist")
+    if kinds & {"alt", "rep"}:
+        return None  # TEMPORARY: alternations and repeats come in later steps
+    before, group, after = split(root)
+    # zero-width items at the end of the context (e.g. < in \b(\w+)) can stay
+    # in front of the group instead of going in the lookbehind
+    last = max((i for i, (_, zw) in enumerate(before) if not zw), default=-1)
+    behind = "".join(text for text, _ in before[:last + 1])
+    out = "".join(text for text, _ in before[last + 1:]) + group
+    if behind:
+        out = "%(" + behind + ")@<=" + out
+    if after:
+        out += "%(" + after + ")@="
+    return out
+
+
 # --------------------------------------------------------------------------
 # Colors: maps a TextMate scope name -> a standard Vim highlight group. The
 # generated file links each rule's group to one of these, so it is colored by
@@ -457,19 +524,30 @@ class Converter:
             raise ConvertError(f"{label}: {e} in {regex!r}") from None
 
     @staticmethod
-    def pattern(node, icase):
-        r"""Wraps a tree as a Vim pattern: /\v.../, with \c if case-insensitive."""
-        return "/\\v" + "\\c" * icase + render(node) + "/"
+    def pattern(node, icase, target=None):
+        r"""Wraps a tree as a Vim pattern: /\v.../, with \c if case-insensitive.
 
-    def captures(self, regex, caps, name, label):
-        r"""Parses a rule's regex and works out the scope for the whole match.
+        With target, the pattern matches only that capture group (see
+        render_capture).
+        """
+        body = render(node) if target is None else render_capture(node, target)
+        if body is None:
+            return None  # TEMPORARY: see render_capture
+        return "/\\v" + "\\c" * icase + body + "/"
 
-        Returns (scope, Vim pattern). The whole match is colored by the rule's
-        name, unless a capture covers all of it, in which case the capture's
-        name wins:
+    def captures(self, regex, caps, name, label, prefix, out):
+        r"""Parses a rule's regex, writes its capture items and works out the
+        scope for the whole match.
+
+        Returns (scope, capture group names, Vim pattern). The whole match is
+        colored by the rule's name, unless a capture covers all of it, in
+        which case the capture's name wins:
           capture "0"                       always the whole match
           a group around the entire regex   e.g. capture "1" of ([a-zA-Z_]\w*)
-        Captures of only part of the match are handled in a later step.
+        Every other named capture becomes its own contained syntax match,
+        named prefix + number (e.g. rascriptHeader_1_c2) and added to out; the
+        rule's match then lists them in contains=. With out=None they are
+        skipped.
         """
         node, icase, ngroups = self.parse_rule(regex, label)
         # unwrap groups that surround the entire pattern, noting capture numbers
@@ -482,19 +560,29 @@ class Converter:
         whole = name
         for key in ["0"] + [str(i) for i in whole_groups]:
             whole = caps.get(key, {}).get("name", whole)
+        groups = []
         for key, cap in sorted(caps.items(), key=lambda kv: int(kv[0])):
             # captures with their own patterns, or for groups that don't exist
             if "patterns" in cap or int(key) > ngroups:
                 raise ConvertError(f"{label}: capture {key} is not supported")
-        return whole, self.pattern(node, icase)
+            if key == "0" or not cap.get("name") or int(key) in whole_groups or out is None:
+                continue
+            pat = self.pattern(node, icase, int(key))
+            if pat is None:
+                continue  # TEMPORARY: see render_capture
+            groups.append(f"{prefix}{key}")
+            out.append(f"syntax match {groups[-1]} {pat} contained")
+            self.link(groups[-1], cap["name"])
+        return whole, groups, self.pattern(node, icase)
 
-    def emit_match(self, rule, g, contained, label):
-        """A match rule -> one syntax match line."""
-        whole, pat = self.captures(rule["match"], rule.get("captures", {}), rule.get("name"), label)
+    def emit_match(self, rule, g, contained, label, caps_out):
+        """A match rule -> one syntax match line (capture items go in caps_out)."""
+        whole, groups, pat = self.captures(rule["match"], rule.get("captures", {}), rule.get("name"),
+                                           label, f"{g}_c", caps_out)
         self.link(g, whole)
-        return [f"syntax match {g} {pat}{contained}"]
+        return [f"syntax match {g} {pat}" + (f" contains={','.join(groups)}" if groups else "") + contained]
 
-    def emit_region(self, rule, g, contained, label):
+    def emit_region(self, rule, g, contained, label, caps_out):
         r"""A begin/end rule -> one syntax region line.
 
         e.g. strings: syntax region rascriptStrings matchgroup=rascriptStrings_begin
@@ -509,11 +597,14 @@ class Converter:
             raise ConvertError(f"{label}: {', '.join(unsupported)} is not supported")
         name = rule.get("name")
         # "captures" applies to both begin and end unless they have their own
-        bwhole, begin = self.captures(rule["begin"], rule.get("beginCaptures", rule.get("captures", {})),
-                                      name, label + " begin")
+        # partial begin captures are written in a later step (out=None skips them)
+        bwhole, _, begin = self.captures(rule["begin"], rule.get("beginCaptures", rule.get("captures", {})),
+                                         name, label + " begin", f"{g}_bc", None)
         self.link(g + "_begin", bwhole)
-        ewhole, end = self.captures(rule["end"], rule.get("endCaptures", rule.get("captures", {})),
-                                    name, label + " end")
+        ewhole, egroups, end = self.captures(rule["end"], rule.get("endCaptures", rule.get("captures", {})),
+                                             name, label + " end", f"{g}_ec", [])
+        if egroups:
+            raise ConvertError(f"{label}: end captures other than 0 are not supported")
         self.link(g + "_end", ewhole)
         # contentName colors only the body; name colors begin, body and end
         self.link(g, rule.get("contentName") or name)
@@ -545,12 +636,12 @@ class Converter:
         # first one in the grammar but Vim uses the last one defined. Writing
         # the rules in reverse makes Vim pick the same rule VS Code does, e.g.
         # "if" is a control keyword, not the catch-all variable rule
-        rules_out = []
+        rules_out, caps_out = [], []
         for rule in reversed(order):
             g, label = self.group_names[id(rule)], self.rule_labels[id(rule)]
             emit = self.emit_match if "match" in rule else self.emit_region
             contained = "" if id(rule) in top else " contained"
-            rules_out += [f'" {label}'] + emit(rule, g, contained, label)
+            rules_out += [f'" {label}'] + emit(rule, g, contained, label, caps_out)
 
         # one cluster per included repository entry, listing the rules in it
         # e.g. syntax cluster rascriptNumbers contains=rascriptNumbers_1,rascriptNumbers_2
@@ -581,6 +672,7 @@ class Converter:
                 "syntax iskeyword @,48-57,_,192-255", "syntax sync fromstart", ""]
         out += ['" Repository entries'] + clusters_out + [""] if clusters_out else []
         out += ['" Rules: later definitions take priority'] + rules_out + [""]
+        out += ['" Captures'] + caps_out + [""] if caps_out else []
         # one line per colored rule, e.g. "highlight default link rascriptControls Statement";
         # "default" lets a user's own highlight settings override these
         width = max((len(g) for g, _ in self.highlight_links), default=0)
