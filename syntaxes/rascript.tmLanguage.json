@@ -141,8 +141,8 @@
                     }
                 },
                 {
-                    "comment": "if the right hand side of the equals is NOT a function call, mark the word a variable",
-                    "match": "(?<=\\=)\\s*(\\w+)\\s*(?!\\()",
+                    "comment": "if the right hand side of the equals is NOT a function call, boolean, or number, mark the word a variable. Skipped values fall through to their own rules",
+                    "match": "(?<=\\=)\\s*(?!(?:true|false)\\b|\\d)(\\w+)\\b(?!\\s*\\()",
                     "captures": {
                         "1": {
                             "name": "variable.other.rascript"
