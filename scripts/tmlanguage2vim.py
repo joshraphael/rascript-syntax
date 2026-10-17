@@ -2,7 +2,6 @@
 
 import datetime
 import json
-import os
 import re
 import sys
 
@@ -314,13 +313,14 @@ def camel(key):
 
 
 class Converter:
-    def __init__(self, grammar, source_name):
-        self.g, self.source_name = grammar, source_name
+    def __init__(self, grammar):
+        self.grammar = grammar
         self.lang = grammar.get("scopeName", "source.tmlang").split(".")[-1]
-        self.repo, self.root = grammar.get("repository", {}), grammar.get("patterns", [])
-        self.top = self.lang + "Top"
-        self.names, self.labels = {}, {}
-        self.links = []  # (rule group, Vim group) pairs for highlight lines
+        self.repository = grammar.get("repository", {})
+        self.top_patterns = grammar.get("patterns", [])
+        self.top_name = self.lang + "Top"
+        self.group_names, self.rule_labels = {}, {}
+        self.highlight_links = []  # (rule group, Vim group) pairs for highlight lines
 
     def assign(self, node, base, label):
         """Names each rule after its repository key and position."""
@@ -329,16 +329,16 @@ class Converter:
         nested = is_rule(node)
         if nested:
             name, n = base, 2
-            while name in self.names.values():
+            while name in self.group_names.values():
                 name, n = f"{base}{n}", n + 1
-            self.names[id(node)], self.labels[id(node)], base = name, label, name
+            self.group_names[id(node)], self.rule_labels[id(node)], base = name, label, name
         inline = [p for p in node.get("patterns", []) if "include" not in p]
         for i, p in enumerate(inline):
             single = len(inline) == 1 and not nested
             self.assign(p, base if single else f"{base}_{i + 1}", f"{label}/{i + 1}")
 
     def resolve(self, include):
-        if include.startswith("#") and include[1:] in self.repo:
+        if include.startswith("#") and include[1:] in self.repository:
             return include[1:]
         raise ConvertError(f"unsupported include {include!r}")
 
@@ -350,7 +350,7 @@ class Converter:
                 if key in seen:
                     continue
                 seen.add(key)
-                entry = self.repo[key]
+                entry = self.repository[key]
                 if is_rule(entry):
                     visit(entry)
                 else:
@@ -364,7 +364,7 @@ class Converter:
         """Records that a rule's group should be colored like its scope."""
         vim = scope_to_vim(scope)
         if vim:
-            self.links.append((group, vim))
+            self.highlight_links.append((group, vim))
 
     @staticmethod
     def parse_rule(regex, label):
@@ -380,15 +380,15 @@ class Converter:
         return "/\\v" + "\\c" * icase + render(node) + "/"
 
     def convert(self):
-        for key, entry in self.repo.items():
+        for key, entry in self.repository.items():
             self.assign(entry, self.lang + camel(key), "#" + key)
-        self.assign({"patterns": self.root}, self.top, "patterns")
+        self.assign({"patterns": self.top_patterns}, self.top_name, "patterns")
 
         order = []
-        self.walk(self.root, order.append, set())
+        self.walk(self.top_patterns, order.append, set())
         rules_out = []
         for rule in order:
-            g, label = self.names[id(rule)], self.labels[id(rule)]
+            g, label = self.group_names[id(rule)], self.rule_labels[id(rule)]
             rules_out.append(f'" {label}')
             if "match" in rule:
                 node, icase, _ = self.parse_rule(rule["match"], label)
@@ -400,9 +400,9 @@ class Converter:
                 self.parse_rule(rule["begin"], label + " begin")
                 self.parse_rule(rule["end"], label + " end")
 
-        version = self.g.get("version")
+        version = self.grammar.get("version")
         out = ['" Vim syntax file',
-               f'" Language:    {self.g.get("name", self.lang)}',
+               f'" Language:    {self.grammar.get("name", self.lang)}',
                f'" Maintainer:  {MAINTAINER}',
                f'" URL:         {URL}',
                f'" Last Change: {datetime.datetime.now(datetime.timezone.utc):%Y %b %d}']
@@ -420,9 +420,9 @@ class Converter:
         out += ['" Rules'] + rules_out + [""]
         # one line per colored rule, e.g. "highlight default link rascriptControls Statement";
         # "default" lets a user's own highlight settings override these
-        width = max((len(g) for g, _ in self.links), default=0)
-        out += [f"highlight default link {g.ljust(width)} {vim}" for g, vim in self.links]
-        out += [""] if self.links else []
+        width = max((len(g) for g, _ in self.highlight_links), default=0)
+        out += [f"highlight default link {g.ljust(width)} {vim}" for g, vim in self.highlight_links]
+        out += [""] if self.highlight_links else []
         out += [f"let b:current_syntax = '{self.lang}'", "",
                 '" Restore the user\'s cpoptions',
                 "let &cpo = s:cpo_save", "unlet s:cpo_save"]
@@ -435,7 +435,7 @@ def main():
     with open(sys.argv[1], encoding="utf-8") as f:
         grammar = json.load(f)
     try:
-        result = Converter(grammar, os.path.basename(sys.argv[1])).convert()
+        result = Converter(grammar).convert()
     except ConvertError as e:
         sys.exit(f"error: {e}")
     sys.stdout.write(result)
