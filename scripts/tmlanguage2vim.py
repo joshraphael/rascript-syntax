@@ -260,6 +260,51 @@ def render(node):
     return node[1]
 
 
+# --------------------------------------------------------------------------
+# Colors: maps a TextMate scope name -> a standard Vim highlight group. The
+# generated file links each rule's group to one of these, so it is colored by
+# whatever colorscheme the user has, like Vim's built-in syntax files.
+# --------------------------------------------------------------------------
+
+# Scope prefix -> Vim highlight group (see :help group-name). The longest
+# prefix that matches wins, e.g. for "constant.numeric.hexadecimal.rascript":
+#   constant.numeric.hexadecimal  (not listed)
+#   constant.numeric              -> Number   <- used
+#   constant                      -> Constant (shorter, so ignored)
+SCOPE_MAP = {
+    "comment": "Comment", "punctuation.definition.comment": "Comment",
+    "string": "String", "punctuation.definition.string": "String",
+    "constant": "Constant", "constant.numeric": "Number", "constant.character": "Character",
+    "constant.character.escape": "SpecialChar", "constant.language.boolean": "Boolean",
+    "keyword": "Keyword", "keyword.control": "Statement", "keyword.operator": "Operator",
+    "keyword.other": "PreProc", "storage": "StorageClass", "storage.type": "Type",
+    "entity.name": "Identifier", "entity.name.function": "Function", "entity.name.class": "Type",
+    "entity.name.type": "Type", "entity.name.tag": "Tag", "entity.other.attribute-name": "Identifier",
+    "support": "Special", "support.function": "Function", "support.class": "Type",
+    "support.type": "Type", "support.constant": "Constant",
+    "variable": "Identifier", "variable.language": "Special",
+    "punctuation": "Delimiter", "punctuation.definition.template-expression": "Special",
+    "punctuation.section.embedded": "Special", "invalid": "Error",
+    "markup.heading": "Title", "markup.underline": "Underlined", "meta.preprocessor": "PreProc",
+}
+
+
+def scope_to_vim(scope):
+    """Returns the Vim group for a scope, or None if no prefix is in SCOPE_MAP.
+
+    A scope can be several names separated by spaces; the last one is the most
+    specific, so it is tried first.
+      "constant.numeric.decimal.rascript" -> "Number"
+      "meta.something.rascript"           -> None
+    """
+    for s in reversed((scope or "").split()):
+        parts = s.split(".")
+        for n in range(len(parts), 0, -1):
+            if ".".join(parts[:n]) in SCOPE_MAP:
+                return SCOPE_MAP[".".join(parts[:n])]
+    return None
+
+
 def is_rule(node):
     return "match" in node or "begin" in node
 
@@ -275,6 +320,7 @@ class Converter:
         self.repo, self.root = grammar.get("repository", {}), grammar.get("patterns", [])
         self.top = self.lang + "Top"
         self.names, self.labels = {}, {}
+        self.links = []  # (rule group, Vim group) pairs for highlight lines
 
     def assign(self, node, base, label):
         """Names each rule after its repository key and position."""
@@ -314,6 +360,12 @@ class Converter:
             else:
                 self.walk(p.get("patterns", []), visit, seen)
 
+    def link(self, group, scope):
+        """Records that a rule's group should be colored like its scope."""
+        vim = scope_to_vim(scope)
+        if vim:
+            self.links.append((group, vim))
+
     @staticmethod
     def parse_rule(regex, label):
         """parse() with the rule's location added to any error message."""
@@ -341,6 +393,7 @@ class Converter:
             if "match" in rule:
                 node, icase, _ = self.parse_rule(rule["match"], label)
                 rules_out.append(f"syntax match {g} {self.pattern(node, icase)}")
+                self.link(g, rule.get("name"))
             else:
                 # begin/end regions are written in a later step; for now
                 # just check that their regexes parse
@@ -365,6 +418,11 @@ class Converter:
                 '" setting can\'t change highlighting, e.g. matching "if" inside "my_if"',
                 "syntax iskeyword @,48-57,_,192-255", "syntax sync fromstart", ""]
         out += ['" Rules'] + rules_out + [""]
+        # one line per colored rule, e.g. "highlight default link rascriptControls Statement";
+        # "default" lets a user's own highlight settings override these
+        width = max((len(g) for g, _ in self.links), default=0)
+        out += [f"highlight default link {g.ljust(width)} {vim}" for g, vim in self.links]
+        out += [""] if self.links else []
         out += [f"let b:current_syntax = '{self.lang}'", "",
                 '" Restore the user\'s cpoptions',
                 "let &cpo = s:cpo_save", "unlet s:cpo_save"]
