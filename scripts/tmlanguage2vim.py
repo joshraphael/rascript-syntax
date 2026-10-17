@@ -461,14 +461,41 @@ class Converter:
         r"""Wraps a tree as a Vim pattern: /\v.../, with \c if case-insensitive."""
         return "/\\v" + "\\c" * icase + render(node) + "/"
 
+    def captures(self, regex, caps, name, label):
+        r"""Parses a rule's regex and works out the scope for the whole match.
+
+        Returns (scope, Vim pattern). The whole match is colored by the rule's
+        name, unless a capture covers all of it, in which case the capture's
+        name wins:
+          capture "0"                       always the whole match
+          a group around the entire regex   e.g. capture "1" of ([a-zA-Z_]\w*)
+        Captures of only part of the match are handled in a later step.
+        """
+        node, icase, ngroups = self.parse_rule(regex, label)
+        # unwrap groups that surround the entire pattern, noting capture numbers
+        #   ((?:a|b))  -> groups 1 and the (?:) both wrap everything -> [1]
+        whole_groups, n = [], node
+        while n[0] == "seq" and len(n[1]) == 1 or n[0] == "group" and n[1] == ")":
+            if n[0] == "group" and n[3]:
+                whole_groups.append(n[3])
+            n = n[1][0] if n[0] == "seq" else n[2]
+        whole = name
+        for key in ["0"] + [str(i) for i in whole_groups]:
+            whole = caps.get(key, {}).get("name", whole)
+        for key, cap in sorted(caps.items(), key=lambda kv: int(kv[0])):
+            # captures with their own patterns, or for groups that don't exist
+            if "patterns" in cap or int(key) > ngroups:
+                raise ConvertError(f"{label}: capture {key} is not supported")
+        return whole, self.pattern(node, icase)
+
     def emit_match(self, rule, g, contained, label):
         """A match rule -> one syntax match line."""
-        node, icase, _ = self.parse_rule(rule["match"], label)
-        self.link(g, rule.get("name"))
-        return [f"syntax match {g} {self.pattern(node, icase)}{contained}"]
+        whole, pat = self.captures(rule["match"], rule.get("captures", {}), rule.get("name"), label)
+        self.link(g, whole)
+        return [f"syntax match {g} {pat}{contained}"]
 
     def emit_region(self, rule, g, contained, label):
-        """A begin/end rule -> one syntax region line.
+        r"""A begin/end rule -> one syntax region line.
 
         e.g. strings: syntax region rascriptStrings matchgroup=rascriptStrings_begin
              start=/\v\"/ matchgroup=rascriptStrings_end end=/\v\"/
@@ -481,10 +508,13 @@ class Converter:
         if unsupported:
             raise ConvertError(f"{label}: {', '.join(unsupported)} is not supported")
         name = rule.get("name")
-        begin = self.pattern(*self.parse_rule(rule["begin"], label + " begin")[:2])
-        self.link(g + "_begin", name)
-        end = self.pattern(*self.parse_rule(rule["end"], label + " end")[:2])
-        self.link(g + "_end", name)
+        # "captures" applies to both begin and end unless they have their own
+        bwhole, begin = self.captures(rule["begin"], rule.get("beginCaptures", rule.get("captures", {})),
+                                      name, label + " begin")
+        self.link(g + "_begin", bwhole)
+        ewhole, end = self.captures(rule["end"], rule.get("endCaptures", rule.get("captures", {})),
+                                    name, label + " end")
+        self.link(g + "_end", ewhole)
         # contentName colors only the body; name colors begin, body and end
         self.link(g, rule.get("contentName") or name)
         members = self.contains(rule.get("patterns", []))
