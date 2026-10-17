@@ -567,8 +567,7 @@ class Converter:
           a group around the entire regex   e.g. capture "1" of ([a-zA-Z_]\w*)
         Every other named capture becomes its own contained syntax match,
         named prefix + number (e.g. rascriptHeader_1_c2) and added to out; the
-        rule's match then lists them in contains=. With out=None they are
-        skipped.
+        rule's match then lists them in contains=.
         """
         node, icase, ngroups = self.parse_rule(regex, label)
         # unwrap groups that surround the entire pattern, noting capture numbers
@@ -586,7 +585,7 @@ class Converter:
             # captures with their own patterns, or for groups that don't exist
             if "patterns" in cap or int(key) > ngroups:
                 raise ConvertError(f"{label}: capture {key} is not supported")
-            if key == "0" or not cap.get("name") or int(key) in whole_groups or out is None:
+            if key == "0" or not cap.get("name") or int(key) in whole_groups:
                 continue
             groups.append(f"{prefix}{key}")
             out.append(f"syntax match {groups[-1]} {self.pattern(node, icase, int(key))} contained")
@@ -601,7 +600,7 @@ class Converter:
         return [f"syntax match {g} {pat}" + (f" contains={','.join(groups)}" if groups else "") + contained]
 
     def emit_region(self, rule, g, contained, label, caps_out):
-        r"""A begin/end rule -> one syntax region line.
+        r"""A begin/end rule -> a syntax region line (two lines with begin captures).
 
         e.g. strings: syntax region rascriptStrings matchgroup=rascriptStrings_begin
              start=/\v\"/ matchgroup=rascriptStrings_end end=/\v\"/
@@ -609,26 +608,44 @@ class Converter:
         {g}_end) so they can be colored separately from the body, and so the
         region's contents are never matched inside them. contains= lists the
         rules allowed inside the region (the rule's own "patterns").
+
+        A matchgroup start can't contain other items, so begin captures that
+        cover part of the begin text need a different shape: a syntax match
+        for the begin text (which can contain the capture items) whose
+        nextgroup= is the body region, starting right where the match ended:
+          syntax region {g}_body start=/\v%(\_.)@=/ matchgroup={g}_end end=... contained
+          syntax match {g} <begin> contains={g}_bc1,... nextgroup={g}_body
+        %(\_.)@= is zero-width and matches anywhere, so the body starts
+        immediately; contained keeps it from starting anywhere else.
         """
         unsupported = {"while", "applyEndPatternLast"} & rule.keys()
         if unsupported:
             raise ConvertError(f"{label}: {', '.join(unsupported)} is not supported")
         name = rule.get("name")
         # "captures" applies to both begin and end unless they have their own
-        # partial begin captures are written in a later step (out=None skips them)
-        bwhole, _, begin = self.captures(rule["begin"], rule.get("beginCaptures", rule.get("captures", {})),
-                                         name, label + " begin", f"{g}_bc", None)
-        self.link(g + "_begin", bwhole)
+        bwhole, bgroups, begin = self.captures(rule["begin"], rule.get("beginCaptures", rule.get("captures", {})),
+                                               name, label + " begin", f"{g}_bc", caps_out)
+        lines, body = [], g
+        if bgroups:
+            body = g + "_body"
+            lines.append(f"syntax match {g} {begin} contains={','.join(bgroups)} nextgroup={body}{contained}")
+            self.link(g, bwhole)
+            start, contained = r"start=/\v%(\_.)@=/", " contained"
+        else:
+            self.link(g + "_begin", bwhole)
+            start = f"matchgroup={g}_begin start={begin}"
         ewhole, egroups, end = self.captures(rule["end"], rule.get("endCaptures", rule.get("captures", {})),
                                              name, label + " end", f"{g}_ec", [])
         if egroups:
             raise ConvertError(f"{label}: end captures other than 0 are not supported")
         self.link(g + "_end", ewhole)
-        # contentName colors only the body; name colors begin, body and end
-        self.link(g, rule.get("contentName") or name)
         members = self.contains(rule.get("patterns", []))
-        return [f"syntax region {g} matchgroup={g}_begin start={begin} matchgroup={g}_end end={end}"
-                + (f" contains={','.join(members)}" if members else "") + contained]
+        # contentName colors only the body; name colors begin, body and end
+        self.link(body, rule.get("contentName") or name)
+        # the region goes first so the begin match, defined after it, wins
+        lines.insert(0, f"syntax region {body} {start} matchgroup={g}_end end={end}"
+                        + (f" contains={','.join(members)}" if members else "") + contained)
+        return lines
 
     def convert(self):
         for key, entry in self.repository.items():
