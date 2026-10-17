@@ -335,17 +335,19 @@ def render_capture(root, target):
     The guard includes what follows the alternation ("rest"), because a only
     wins if the whole regex can still match after it.
 
-    Returns None when the path to the group goes through a repeat; that is
-    handled in a later step, and the capture is skipped.
+    Repeats on the way to the group: when a group repeats, TextMate scopes
+    only its last iteration. So the repeat is split into the earlier
+    iterations (one fewer, going into the lookbehind) plus one final
+    iteration holding the group:
+      (?:(\d)\.)+x  target 1 -> %(%(%(\d)\.)*)@<=\d%(\.x)@=
     """
-    path, kinds = set(), set()
+    path = set()
 
     def find(node):
         """Marks every node on the way from root down to the target group."""
         hit = node[0] == "group" and node[3] == target or any(find(c) for c in children(node))
         if hit:
             path.add(id(node))
-            kinds.add(node[0])
         return hit
 
     def split(node, rest):
@@ -374,15 +376,20 @@ def render_capture(root, target):
             guards = [("%(" + render(b) + rest + ")@!", True) for b in node[1][:k]]
             before, group, after = split(node[1][k], rest)
             return guards + before, group, after
-        # otherwise a group wrapping the target; step inside it
-        if node[1] in LOOKAROUND:
-            raise ConvertError("captures inside lookarounds are not supported")
-        return split(node[2], rest)
+        if kind == "group":
+            # a group wrapping the target; step inside it
+            if node[1] in LOOKAROUND:
+                raise ConvertError("captures inside lookarounds are not supported")
+            return split(node[2], rest)
+        # a repeat: earlier iterations (one fewer, at least zero), then the
+        # last one with the target; x{2,4} -> x{1,3} before, x? -> none before
+        _, child, lo, hi, lazy = node
+        lo, hi = max(lo, 1) - 1, None if hi is None else hi - 1
+        before, group, after = split(child, rest)
+        return ([] if hi == 0 else [(render(child) + quantifier(lo, hi, lazy), False)]) + before, group, after
 
     if not find(root):
         raise ConvertError(f"capture group {target} does not exist")
-    if "rep" in kinds:
-        return None  # TEMPORARY: repeats come in a later step
     before, group, after = split(root, "")
     # zero-width items at the end of the context (e.g. < in \b(\w+)) can stay
     # in front of the group instead of going in the lookbehind
@@ -547,8 +554,6 @@ class Converter:
         render_capture).
         """
         body = render(node) if target is None else render_capture(node, target)
-        if body is None:
-            return None  # TEMPORARY: see render_capture
         return "/\\v" + "\\c" * icase + body + "/"
 
     def captures(self, regex, caps, name, label, prefix, out):
@@ -583,11 +588,8 @@ class Converter:
                 raise ConvertError(f"{label}: capture {key} is not supported")
             if key == "0" or not cap.get("name") or int(key) in whole_groups or out is None:
                 continue
-            pat = self.pattern(node, icase, int(key))
-            if pat is None:
-                continue  # TEMPORARY: see render_capture
             groups.append(f"{prefix}{key}")
-            out.append(f"syntax match {groups[-1]} {pat} contained")
+            out.append(f"syntax match {groups[-1]} {self.pattern(node, icase, int(key))} contained")
             self.link(groups[-1], cap["name"])
         return whole, groups, self.pattern(node, icase)
 
