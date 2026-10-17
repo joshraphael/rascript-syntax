@@ -98,6 +98,11 @@ CLASS_ESC = {"w": "0-9A-Za-z_", "d": "0-9", "s": r" \t\r\n\d11\d12", "h": "0-9A-
 # of CONTROL, so the generated file never contains a raw tab or newline
 VIM_CONTROL = {"\t": r"\t", "\n": r"\n", "\r": r"\r"}
 
+# Characters that can be written bare in a Vim very magic (\v) pattern. In \v
+# mode every other ASCII character is special (e.g. = < > @ % { mean something),
+# so render() puts a backslash before them
+WORD = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")
+
 
 def parse(src):
     """Returns (tree, ignore_case, number of capture groups)."""
@@ -203,6 +208,58 @@ def char_class(token):
     return ("class", "[" + "^" * negated + "".join(parts) + "]")
 
 
+# --------------------------------------------------------------------------
+# Regex writing: turns a parsed tree back into a Vim very magic regex. The
+# converter writes every pattern as /\v.../ because very magic is closest to
+# Oniguruma: ( ) | + ? { work without backslashes.
+#   e.g. tree of "0x[0-9a-fA-F]+" -> 0x[0-9a-fA-F]+
+#        tree of "a{2,}?"         -> a{-2,}
+#        tree of "(?<=\.)\w"      -> %(\.)@<=\w
+# --------------------------------------------------------------------------
+
+
+def quantifier(lo, hi, lazy):
+    """Writes a repeat count in Vim syntax.
+
+    Greedy * + ? stay as they are; everything else uses braces, where a
+    leading - makes Vim match as few as possible (lazy):
+      (0, None, False) -> *         (2, 4, False) -> {2,4}
+      (0, None, True)  -> {-}       (2, 4, True)  -> {-2,4}
+      (3, 3, False)    -> {3}       (2, None, False) -> {2,}
+    """
+    if not lazy and (lo, hi) in ((0, None), (1, None), (0, 1)):
+        return {(0, None): "*", (1, None): "+", (0, 1): "?"}[(lo, hi)]
+    body = "" if lazy and (lo, hi) == (0, None) else str(lo) if lo == hi else f"{lo},{'' if hi is None else hi}"
+    return "{" + "-" * lazy + body + "}"
+
+
+def render(node):
+    """Writes a tree node (and everything under it) as very magic text."""
+    kind = node[0]
+    if kind == "seq":
+        return "".join(map(render, node[1]))
+    if kind == "alt":
+        return "|".join(map(render, node[1]))
+    if kind == "group":
+        # every group opens with %( (non-capturing); GROUPS gave the closer
+        return "%(" + render(node[2]) + node[1]
+    if kind == "rep":
+        return render(node[1]) + quantifier(*node[2:])
+    if kind == "char":
+        c = node[1]
+        if c in WORD or c == " " or ord(c) > 127:
+            return c
+        # tab/newline -> \t \n, other ASCII punctuation -> backslash + char
+        return VIM_CONTROL.get(c, "\\" + c)
+    if kind == "esc":
+        return ESC[node[1]]
+    if kind == "wordb":
+        # Vim has no \b, only < (start of word) and > (end of word); match either
+        return "%(<|>)"
+    # class, anchor and any already hold their Vim text
+    return node[1]
+
+
 def is_rule(node):
     return "match" in node or "begin" in node
 
@@ -257,6 +314,19 @@ class Converter:
             else:
                 self.walk(p.get("patterns", []), visit, seen)
 
+    @staticmethod
+    def parse_rule(regex, label):
+        """parse() with the rule's location added to any error message."""
+        try:
+            return parse(regex)
+        except ConvertError as e:
+            raise ConvertError(f"{label}: {e} in {regex!r}") from None
+
+    @staticmethod
+    def pattern(node, icase):
+        r"""Wraps a tree as a Vim pattern: /\v.../, with \c if case-insensitive."""
+        return "/\\v" + "\\c" * icase + render(node) + "/"
+
     def convert(self):
         for key, entry in self.repo.items():
             self.assign(entry, self.lang + camel(key), "#" + key)
@@ -264,15 +334,18 @@ class Converter:
 
         order = []
         self.walk(self.root, order.append, set())
+        rules_out = []
         for rule in order:
-            for key in ("match", "begin", "end"):
-                if key in rule:
-                    label = self.labels[id(rule)] + ("" if key == "match" else " " + key)
-                    try:
-                        parse(rule[key])
-                    except ConvertError as e:
-                        raise ConvertError(f"{label}: {e} in {rule[key]!r}") from None
-        rules_out = [f'" {self.labels[id(rule)]}: {self.names[id(rule)]}' for rule in order]
+            g, label = self.names[id(rule)], self.labels[id(rule)]
+            rules_out.append(f'" {label}')
+            if "match" in rule:
+                node, icase, _ = self.parse_rule(rule["match"], label)
+                rules_out.append(f"syntax match {g} {self.pattern(node, icase)}")
+            else:
+                # begin/end regions are written in a later step; for now
+                # just check that their regexes parse
+                self.parse_rule(rule["begin"], label + " begin")
+                self.parse_rule(rule["end"], label + " end")
 
         version = self.g.get("version")
         out = ['" Vim syntax file',
