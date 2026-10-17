@@ -26,10 +26,12 @@ class ConvertError(Exception):
 #                                   no limit); from * + ? {n,m}
 #   ("char", c)                     one literal character
 #   ("esc", c)                      class escape letter from ESC, e.g. "d"
-#   ("class", vim)                  a [...] class, already in Vim syntax
+#   ("class", vim, wordy)           a [...] class, already in Vim syntax;
+#                                   wordy: it can match a word character
 #   ("anchor", vim)                 ^ or $, stored as its Vim text
 #   ("any", ".")                    . (any character)
-#   ("wordb",)                      \b (word boundary)
+#   ("wordb",)                      \b (word boundary); only exists while
+#                                   parsing, then becomes an anchor < or >
 # e.g. "a+|b" -> ("alt", [("seq", [("rep", ("char", "a"), 1, None, False)]),
 #                         ("seq", [("char", "b")])])
 # --------------------------------------------------------------------------
@@ -97,10 +99,16 @@ CLASS_ESC = {"w": "0-9A-Za-z_", "d": "0-9", "s": r" \t\r\n\d11\d12", "h": "0-9A-
 # of CONTROL, so the generated file never contains a raw tab or newline
 VIM_CONTROL = {"\t": r"\t", "\n": r"\n", "\r": r"\r"}
 
-# Characters that can be written bare in a Vim very magic (\v) pattern. In \v
-# mode every other ASCII character is special (e.g. = < > @ % { mean something),
-# so render() puts a backslash before them
+# Word characters (what \w matches). Used two ways:
+#  - render(): these are the only ASCII characters that can be written bare in
+#    a Vim very magic (\v) pattern; every other one is special (= < > @ % {
+#    ...), so it gets a backslash
+#  - edge_is_word(): deciding whether \b is the start or end of a word
 WORD = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")
+
+# Vim closers of the lookaround groups (see GROUPS). Lookarounds check text
+# without consuming it, so they don't count as a neighbouring character
+LOOKAROUND = (")@=", ")@!", ")@<=", ")@<!")
 
 
 def parse(src):
@@ -154,6 +162,16 @@ def parse(src):
                 raise ConvertError(f"unsupported group {t!r}")
             else:
                 items.append(("char", t))
+        # Vim has no \b, only < (a word starts here) and > (a word ends here).
+        # Pick one by looking at what is next to the \b in this sequence:
+        #   \bif\b    -> <if>        word after the first, word before the last
+        #   x\b\.     -> x>\.       word before, punctuation after: a word ends
+        #   (a|\b)    -> %(a|%(<|>)) nothing next to it, so allow either
+        for i, item in enumerate(items):
+            if item[0] == "wordb":
+                starts = i + 1 < len(items) and edge_is_word(items[i + 1], False)
+                ends = i > 0 and edge_is_word(items[i - 1], True)
+                items[i] = ("anchor", "<" if starts and not ends else ">" if ends and not starts else "%(<|>)")
         return ("seq", items)
 
     node = alt()
@@ -171,25 +189,27 @@ def escape_char(c):
 
 
 def char_class(token):
-    r"""Translates a [...] class token into a ("class", vim) node.
+    r"""Translates a [...] class token into a ("class", vim, wordy) node.
 
     Reads the inside one item at a time, where an item is a character or an
     escape, optionally followed by -character for a range (a-z). \w \d \s \h
     expand through CLASS_ESC; other items are kept, with ] ^ - \ escaped
     because those are the only characters special inside Vim's brackets.
+    wordy is True if the class can match a word character (used for \b);
+    a negated class counts as not wordy.
 
     Examples (token -> returned node):
-      r"[a-zA-Z_]"   -> ("class", r"[a-zA-Z_]")              nothing to change
-      r"[\w-]"       -> ("class", r"[0-9A-Za-z_\-]")         \w expanded, - escaped
-      r'[^\s"]'      -> ("class", r'[^ \t\r\n\d11\d12"]')    \s expanded, ^ kept
-      r"[\.\]a-z^]"  -> ("class", r"[.\]a-z\^]")             \. unescaped, ] ^ escaped
+      r"[a-zA-Z_]"   -> ("class", r"[a-zA-Z_]", True)              nothing to change
+      r"[\w-]"       -> ("class", r"[0-9A-Za-z_\-]", True)         \w expanded, - escaped
+      r'[^\s"]'      -> ("class", r'[^ \t\r\n\d11\d12"]', False)   \s expanded, ^ kept
+      r"[\.\]a-z^]"  -> ("class", r"[.\]a-z\^]", True)             \. unescaped, ] ^ escaped
       r"[[:alpha:]]" -> raises ConvertError
     """
     # "[^\s"a-z]" -> negated = True
     negated = token.startswith("[^")
     if "[:" in token:
         raise ConvertError("POSIX character classes are not supported")
-    parts = []
+    parts, wordy = [], False
     # split the inside into (lo, hi) items, hi set only for ranges like a-z;
     # lo/hi are one char or a backslash escape, and a - with nothing after it
     # is a literal dash. e.g. inside of [^\s"a-z] is \s"a-z -> (\s, ""), (", ""), (a, z)
@@ -197,14 +217,51 @@ def char_class(token):
         # "\s" -> " \t\r\n\d11\d12"
         if lo[0] == "\\" and lo[1] in CLASS_ESC and not hi:
             parts.append(CLASS_ESC[lo[1]])
+            wordy |= lo[1] in "wdh"
             continue
         # one character, or two for a range: '"' -> ['"'], "a"-"z" -> ["a", "z"],
         # "\." -> ["."], "\t" -> [real tab]
         chars = [escape_char(x[1]) if x[0] == "\\" else x for x in (lo, hi) if x]
+        wordy |= any(c in WORD for c in chars)
         # back to Vim text: ["a", "z"] -> "a-z", [real tab] -> "\t", ["]"] -> "\]"
         parts.append("-".join(VIM_CONTROL.get(c, "\\" + c if c in "]^-\\" else c) for c in chars))
     # -> "[^ \t\r\n\d11\d12"a-z]"
-    return ("class", "[" + "^" * negated + "".join(parts) + "]")
+    return ("class", "[" + "^" * negated + "".join(parts) + "]", wordy and not negated)
+
+
+def children(node):
+    """The nodes directly inside a node (none for single characters)."""
+    if node[0] in ("seq", "alt"):
+        return node[1]
+    return [node[2]] if node[0] == "group" else [node[1]] if node[0] == "rep" else []
+
+
+def zero_width(node):
+    """True for nodes that match a position, not a character: anchors, lookarounds."""
+    return node[0] == "anchor" or node[0] == "group" and node[1] in LOOKAROUND
+
+
+def edge_is_word(node, at_end):
+    r"""Whether the first (or, with at_end, last) character node matches is a word char.
+
+      edge_is_word(<"if">, False)      -> True   "i" is a word char
+      edge_is_word(<"\.">, False)      -> False
+      edge_is_word(<"a|\.">, False)    -> True   either branch counts
+      edge_is_word(<"(?=x)\.">, False) -> False  lookahead skipped, "." checked
+    """
+    kind = node[0]
+    if kind == "char":
+        return node[1] in WORD
+    if kind == "esc":
+        return node[1] in "wdh"
+    if kind == "class":
+        return node[2]
+    if kind == "seq":
+        items = [x for x in node[1] if not zero_width(x)]
+        return bool(items) and edge_is_word(items[-1 if at_end else 0], at_end)
+    if kind == "group" and node[1] in LOOKAROUND:
+        return False
+    return any(edge_is_word(c, at_end) for c in children(node))
 
 
 # --------------------------------------------------------------------------
@@ -252,9 +309,6 @@ def render(node):
         return VIM_CONTROL.get(c, "\\" + c)
     if kind == "esc":
         return ESC[node[1]]
-    if kind == "wordb":
-        # Vim has no \b, only < (start of word) and > (end of word); match either
-        return "%(<|>)"
     # class, anchor and any already hold their Vim text
     return node[1]
 
