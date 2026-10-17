@@ -27,7 +27,7 @@ class ConvertError(Exception):
 #                                   no limit); from * + ? {n,m}
 #   ("char", c)                     one literal character
 #   ("esc", c)                      class escape letter from ESC, e.g. "d"
-#   ("class", text)                 a [...] class, kept as written for now
+#   ("class", vim)                  a [...] class, already in Vim syntax
 #   ("anchor", vim)                 ^ or $, stored as its Vim text
 #   ("any", ".")                    . (any character)
 #   ("wordb",)                      \b (word boundary)
@@ -86,6 +86,18 @@ ESC = {"w": r"\w", "W": r"\W", "s": r"\s", "S": r"\S", "d": r"\d", "D": r"\D", "
 #   \r  carriage return
 CONTROL = {"t": "\t", "n": "\n", "r": "\r"}
 
+# Maps a class escape letter -> the characters it stands for, written as
+# ranges so they can go inside Vim's [...]; Vim doesn't understand \w \d \s
+# inside brackets. e.g. [\w-] -> [0-9A-Za-z_\-]
+#   \w  letters, digits, _      \d  digits
+#   \s  whitespace (\d11 and \d12 are Vim's vertical tab and form feed)
+#   \h  hex digits
+CLASS_ESC = {"w": "0-9A-Za-z_", "d": "0-9", "s": r" \t\r\n\d11\d12", "h": "0-9A-Fa-f"}
+
+# Maps an invisible character -> how Vim writes it in a pattern, the reverse
+# of CONTROL, so the generated file never contains a raw tab or newline
+VIM_CONTROL = {"\t": r"\t", "\n": r"\n", "\r": r"\r"}
+
 
 def parse(src):
     """Returns (tree, ignore_case, number of capture groups)."""
@@ -123,7 +135,7 @@ def parse(src):
                     raise ConvertError("missing ')'")
                 items.append(("group", GROUPS[t], child, index))
             elif t.startswith("[") and len(t) > 1:
-                items.append(("class", t))
+                items.append(char_class(t))
             elif t in ("^", "$"):
                 items.append(("anchor", "\\_" + t))
             elif t == ".":
@@ -152,6 +164,43 @@ def escape_char(c):
     if c.isalnum():
         raise ConvertError(f"unsupported escape \\{c}")
     return c
+
+
+def char_class(token):
+    r"""Translates a [...] class token into a ("class", vim) node.
+
+    Reads the inside one item at a time, where an item is a character or an
+    escape, optionally followed by -character for a range (a-z). \w \d \s \h
+    expand through CLASS_ESC; other items are kept, with ] ^ - \ escaped
+    because those are the only characters special inside Vim's brackets.
+
+    Examples (token -> returned node):
+      r"[a-zA-Z_]"   -> ("class", r"[a-zA-Z_]")              nothing to change
+      r"[\w-]"       -> ("class", r"[0-9A-Za-z_\-]")         \w expanded, - escaped
+      r'[^\s"]'      -> ("class", r'[^ \t\r\n\d11\d12"]')    \s expanded, ^ kept
+      r"[\.\]a-z^]"  -> ("class", r"[.\]a-z\^]")             \. unescaped, ] ^ escaped
+      r"[[:alpha:]]" -> raises ConvertError
+    """
+    # "[^\s"a-z]" -> negated = True
+    negated = token.startswith("[^")
+    if "[:" in token:
+        raise ConvertError("POSIX character classes are not supported")
+    parts = []
+    # split the inside into (lo, hi) items, hi set only for ranges like a-z;
+    # lo/hi are one char or a backslash escape, and a - with nothing after it
+    # is a literal dash. e.g. inside of [^\s"a-z] is \s"a-z -> (\s, ""), (", ""), (a, z)
+    for lo, hi in re.findall(r"(\\.|[^\\])(?:-(\\.|[^\\]))?", token[1 + negated:-1]):
+        # "\s" -> " \t\r\n\d11\d12"
+        if lo[0] == "\\" and lo[1] in CLASS_ESC and not hi:
+            parts.append(CLASS_ESC[lo[1]])
+            continue
+        # one character, or two for a range: '"' -> ['"'], "a"-"z" -> ["a", "z"],
+        # "\." -> ["."], "\t" -> [real tab]
+        chars = [escape_char(x[1]) if x[0] == "\\" else x for x in (lo, hi) if x]
+        # back to Vim text: ["a", "z"] -> "a-z", [real tab] -> "\t", ["]"] -> "\]"
+        parts.append("-".join(VIM_CONTROL.get(c, "\\" + c if c in "]^-\\" else c) for c in chars))
+    # -> "[^ \t\r\n\d11\d12"a-z]"
+    return ("class", "[" + "^" * negated + "".join(parts) + "]")
 
 
 def is_rule(node):
