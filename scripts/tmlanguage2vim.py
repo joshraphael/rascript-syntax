@@ -358,6 +358,11 @@ def scope_to_vim(scope):
     return None
 
 
+# What "$self" and "$base" includes resolve to: the grammar's top-level
+# patterns, written in Vim as the cluster @<lang>Top
+SELF = "$self"
+
+
 def is_rule(node):
     return "match" in node or "begin" in node
 
@@ -375,6 +380,7 @@ class Converter:
         self.top_name = self.lang + "Top"
         self.group_names, self.rule_labels = {}, {}
         self.highlight_links = []  # (rule group, Vim group) pairs for highlight lines
+        self.used_clusters = set()  # repository keys (or SELF) that something includes
 
     def assign(self, node, base, label):
         """Names each rule after its repository key and position."""
@@ -392,6 +398,9 @@ class Converter:
             self.assign(p, base if single else f"{base}_{i + 1}", f"{label}/{i + 1}")
 
     def resolve(self, include):
+        """An include -> a repository key, or SELF for the top-level patterns."""
+        if include in ("$self", "$base"):
+            return SELF
         if include.startswith("#") and include[1:] in self.repository:
             return include[1:]
         raise ConvertError(f"unsupported include {include!r}")
@@ -404,7 +413,8 @@ class Converter:
                 if key in seen:
                     continue
                 seen.add(key)
-                entry = self.repository[key]
+                self.used_clusters.add(key)
+                entry = {"patterns": self.top_patterns} if key == SELF else self.repository[key]
                 if is_rule(entry):
                     visit(entry)
                 else:
@@ -413,6 +423,24 @@ class Converter:
                 visit(p)
             else:
                 self.walk(p.get("patterns", []), visit, seen)
+
+    def contains(self, pats):
+        """A pattern list -> the names Vim needs in contains=.
+
+        Rules are listed by group name; includes become clusters (@name), so
+        a repository entry is written once and shared by everything including it.
+          [{"include": "#numbers"}, {"match": ...}] -> ["@rascriptNumbers", "rascriptStrings_1"]
+        """
+        out = []
+        for p in pats:
+            if "include" in p:
+                key = self.resolve(p["include"])
+                out.append("@" + (self.top_name if key == SELF else self.lang + camel(key)))
+            elif is_rule(p):
+                out.append(self.group_names[id(p)])
+            else:
+                out.extend(self.contains(p.get("patterns", [])))
+        return out
 
     def link(self, group, scope):
         """Records that a rule's group should be colored like its scope."""
@@ -433,20 +461,21 @@ class Converter:
         r"""Wraps a tree as a Vim pattern: /\v.../, with \c if case-insensitive."""
         return "/\\v" + "\\c" * icase + render(node) + "/"
 
-    def emit_match(self, rule, g, label):
+    def emit_match(self, rule, g, contained, label):
         """A match rule -> one syntax match line."""
         node, icase, _ = self.parse_rule(rule["match"], label)
         self.link(g, rule.get("name"))
-        return [f"syntax match {g} {self.pattern(node, icase)}"]
+        return [f"syntax match {g} {self.pattern(node, icase)}{contained}"]
 
-    def emit_region(self, rule, g, label):
+    def emit_region(self, rule, g, contained, label):
         """A begin/end rule -> one syntax region line.
 
         e.g. strings: syntax region rascriptStrings matchgroup=rascriptStrings_begin
              start=/\v\"/ matchgroup=rascriptStrings_end end=/\v\"/
         matchgroup= puts the begin and end text in their own groups ({g}_begin,
         {g}_end) so they can be colored separately from the body, and so the
-        region's contents are never matched inside them.
+        region's contents are never matched inside them. contains= lists the
+        rules allowed inside the region (the rule's own "patterns").
         """
         unsupported = {"while", "applyEndPatternLast"} & rule.keys()
         if unsupported:
@@ -458,15 +487,30 @@ class Converter:
         self.link(g + "_end", name)
         # contentName colors only the body; name colors begin, body and end
         self.link(g, rule.get("contentName") or name)
-        return [f"syntax region {g} matchgroup={g}_begin start={begin} matchgroup={g}_end end={end}"]
+        members = self.contains(rule.get("patterns", []))
+        return [f"syntax region {g} matchgroup={g}_begin start={begin} matchgroup={g}_end end={end}"
+                + (f" contains={','.join(members)}" if members else "") + contained]
 
     def convert(self):
         for key, entry in self.repository.items():
             self.assign(entry, self.lang + camel(key), "#" + key)
         self.assign({"patterns": self.top_patterns}, self.top_name, "patterns")
 
+        # rules reachable from the top level; every other rule only appears
+        # inside a region, so it is marked contained (Vim won't try it elsewhere)
+        top = set()
+        self.walk(self.top_patterns, lambda r: top.add(id(r)), set())
+
+        # every rule, in the order TextMate would try them: each rule followed
+        # by the rules inside it (if it is a region), each listed once
         order = []
-        self.walk(self.top_patterns, order.append, set())
+
+        def visit(rule):
+            if all(r is not rule for r in order):
+                order.append(rule)
+                self.walk(rule.get("patterns", []) if "begin" in rule else [], visit, set())
+
+        self.walk(self.top_patterns, visit, set())
         # When several rules could match at the same spot, TextMate uses the
         # first one in the grammar but Vim uses the last one defined. Writing
         # the rules in reverse makes Vim pick the same rule VS Code does, e.g.
@@ -475,7 +519,18 @@ class Converter:
         for rule in reversed(order):
             g, label = self.group_names[id(rule)], self.rule_labels[id(rule)]
             emit = self.emit_match if "match" in rule else self.emit_region
-            rules_out += [f'" {label}'] + emit(rule, g, label)
+            contained = "" if id(rule) in top else " contained"
+            rules_out += [f'" {label}'] + emit(rule, g, contained, label)
+
+        # one cluster per included repository entry, listing the rules in it
+        # e.g. syntax cluster rascriptNumbers contains=rascriptNumbers_1,rascriptNumbers_2
+        clusters_out = []
+        for key, entry in self.repository.items():
+            if key in self.used_clusters:
+                members = [self.group_names[id(entry)]] if is_rule(entry) else self.contains(entry.get("patterns", []))
+                clusters_out.append(f"syntax cluster {self.lang}{camel(key)} contains={','.join(members) or 'NONE'}")
+        if SELF in self.used_clusters:
+            clusters_out.append(f"syntax cluster {self.top_name} contains={','.join(self.contains(self.top_patterns))}")
 
         version = self.grammar.get("version")
         out = ['" Vim syntax file',
@@ -494,6 +549,7 @@ class Converter:
                 '" version of the grammar\'s \\b); fixed here so the user\'s iskeyword',
                 '" setting can\'t change highlighting, e.g. matching "if" inside "my_if"',
                 "syntax iskeyword @,48-57,_,192-255", "syntax sync fromstart", ""]
+        out += ['" Repository entries'] + clusters_out + [""] if clusters_out else []
         out += ['" Rules: later definitions take priority'] + rules_out + [""]
         # one line per colored rule, e.g. "highlight default link rascriptControls Statement";
         # "default" lets a user's own highlight settings override these
