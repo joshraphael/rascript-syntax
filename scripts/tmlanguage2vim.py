@@ -433,6 +433,33 @@ class Converter:
         r"""Wraps a tree as a Vim pattern: /\v.../, with \c if case-insensitive."""
         return "/\\v" + "\\c" * icase + render(node) + "/"
 
+    def emit_match(self, rule, g, label):
+        """A match rule -> one syntax match line."""
+        node, icase, _ = self.parse_rule(rule["match"], label)
+        self.link(g, rule.get("name"))
+        return [f"syntax match {g} {self.pattern(node, icase)}"]
+
+    def emit_region(self, rule, g, label):
+        """A begin/end rule -> one syntax region line.
+
+        e.g. strings: syntax region rascriptStrings matchgroup=rascriptStrings_begin
+             start=/\v\"/ matchgroup=rascriptStrings_end end=/\v\"/
+        matchgroup= puts the begin and end text in their own groups ({g}_begin,
+        {g}_end) so they can be colored separately from the body, and so the
+        region's contents are never matched inside them.
+        """
+        unsupported = {"while", "applyEndPatternLast"} & rule.keys()
+        if unsupported:
+            raise ConvertError(f"{label}: {', '.join(unsupported)} is not supported")
+        name = rule.get("name")
+        begin = self.pattern(*self.parse_rule(rule["begin"], label + " begin")[:2])
+        self.link(g + "_begin", name)
+        end = self.pattern(*self.parse_rule(rule["end"], label + " end")[:2])
+        self.link(g + "_end", name)
+        # contentName colors only the body; name colors begin, body and end
+        self.link(g, rule.get("contentName") or name)
+        return [f"syntax region {g} matchgroup={g}_begin start={begin} matchgroup={g}_end end={end}"]
+
     def convert(self):
         for key, entry in self.repository.items():
             self.assign(entry, self.lang + camel(key), "#" + key)
@@ -447,16 +474,8 @@ class Converter:
         rules_out = []
         for rule in reversed(order):
             g, label = self.group_names[id(rule)], self.rule_labels[id(rule)]
-            rules_out.append(f'" {label}')
-            if "match" in rule:
-                node, icase, _ = self.parse_rule(rule["match"], label)
-                rules_out.append(f"syntax match {g} {self.pattern(node, icase)}")
-                self.link(g, rule.get("name"))
-            else:
-                # begin/end regions are written in a later step; for now
-                # just check that their regexes parse
-                self.parse_rule(rule["begin"], label + " begin")
-                self.parse_rule(rule["end"], label + " end")
+            emit = self.emit_match if "match" in rule else self.emit_region
+            rules_out += [f'" {label}'] + emit(rule, g, label)
 
         version = self.grammar.get("version")
         out = ['" Vim syntax file',
