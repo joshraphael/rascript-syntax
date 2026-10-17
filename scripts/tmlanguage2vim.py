@@ -160,6 +160,10 @@ def parse(src):
                 items.append(("char", escape_char(t[1])))
             elif t.startswith("(?"):
                 raise ConvertError(f"unsupported group {t!r}")
+            elif t == "{" and re.match(r",\d+\}", "".join(reversed(toks))):
+                # Oniguruma reads {,n} as "0 to n" repeats; QUANTIFIER_PARTS
+                # doesn't, so it would become the literal text {,n}
+                raise ConvertError("{,n} repeats are not supported, use {0,n}")
             else:
                 items.append(("char", t))
         # Vim has no \b, only < (a word starts here) and > (a word ends here).
@@ -204,11 +208,21 @@ def char_class(token):
       r'[^\s"]'      -> ("class", r'[^ \t\r\n\d11\d12"]', False)   \s expanded, ^ kept
       r"[\.\]a-z^]"  -> ("class", r"[.\]a-z\^]", True)             \. unescaped, ] ^ escaped
       r"[[:alpha:]]" -> raises ConvertError
+      r"[a[b]"       -> raises ConvertError   (from [a[b]], a nested class)
+      r"[a-z&&[^x]"  -> raises ConvertError   (from [a-z&&[^x]], an intersection)
     """
     # "[^\s"a-z]" -> negated = True
     negated = token.startswith("[^")
     if "[:" in token:
         raise ConvertError("POSIX character classes are not supported")
+    # Oniguruma allows classes inside classes ([a[b]]) and intersections
+    # ([a-z&&[^x]]); TOKEN ends the class at the first ], so these would be
+    # split in the wrong place. An escaped \[ or \& is a plain character.
+    units = re.findall(r"\\.|.", token[1 + negated:-1], re.S)
+    if "&&" in "".join(u if u == "&" else " " for u in units):
+        raise ConvertError("character class intersections (&&) are not supported")
+    if "[" in units:
+        raise ConvertError("nested character classes are not supported")
     parts, wordy = [], False
     # split the inside into (lo, hi) items, hi set only for ranges like a-z;
     # lo/hi are one char or a backslash escape, and a - with nothing after it
