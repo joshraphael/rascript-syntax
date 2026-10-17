@@ -15,6 +15,145 @@ class ConvertError(Exception):
     pass
 
 
+# --------------------------------------------------------------------------
+# Regex parsing: turns an Oniguruma regex string into a tree of tuples.
+# Each node is a tuple whose first item names its type; the rest are its
+# fields, read by position (node[1], node[2], ...):
+#   ("seq", items)                  items: nodes matched one after another
+#   ("alt", branches)               branches: nodes, any one may match (a|b)
+#   ("group", closer, child, index) ( ) group; closer: Vim closing text from
+#                                   GROUPS; index: capture number or None
+#   ("rep", child, lo, hi, lazy)    child repeated lo..hi times (hi None =
+#                                   no limit); from * + ? {n,m}
+#   ("char", c)                     one literal character
+#   ("esc", c)                      class escape letter from ESC, e.g. "d"
+#   ("class", text)                 a [...] class, kept as written for now
+#   ("anchor", vim)                 ^ or $, stored as its Vim text
+#   ("any", ".")                    . (any character)
+#   ("wordb",)                      \b (word boundary)
+# e.g. "a+|b" -> ("alt", [("seq", [("rep", ("char", "a"), 1, None, False)]),
+#                         ("seq", [("char", "b")])])
+# --------------------------------------------------------------------------
+
+# Splits a regex into tokens, e.g. "0x[0-9a-f]+" -> "0", "x", "[0-9a-f]", "+".
+# Alternatives, tried left to right:
+#   \\.                        backslash escape: \d \b \( ...
+#   \[\^?\]?(?:\\.|[^\]\\])*\] a whole [...] class; a ] right after [ or [^ is literal
+#   \(\?(?:...)                group opener: (?: (?> (?= (?! (?<= (?<! or (?i); any
+#                              other (?... is still one token so parse() can reject it
+#   (?:[*+?]|\{...\})\??       quantifier: * + ? {n} {n,} {n,m}, with ? making it lazy
+#   .                          any other single character, including ( ) |
+TOKEN = re.compile(r"\\.|\[\^?\]?(?:\\.|[^\]\\])*\]|\(\?(?:<?[=!]|[:>]|i\)|[^:)]*[:)]?)|(?:[*+?]|\{\d+(?:,\d*)?\})\??|.", re.S)
+
+# Splits a quantifier token into (symbol, n, comma, m, lazy):
+#   "+"     -> ("+", None, None, None, "")    short form * + ?
+#   "{2,4}" -> (None, "2", ",", "4", "")      {n} exactly n, {n,} n or more, {n,m}
+#   "*?"    -> ("*", None, None, None, "?")   trailing ? = lazy
+# n = min repeats, m = max repeats; lazy = match as few repeats as possible
+QUANTIFIER_PARTS = re.compile(r"(?:([*+?])|\{(\d+)(,?)(\d*)\})(\??)")
+
+# Maps an Oniguruma group opener -> the text that closes that group in Vim,
+# e.g. "(?=" -> ")@=". Only these group types are supported. In Oniguruma the
+# type is marked at the start of the group; in Vim every group opens with %(
+# and the type is marked after the closing ):
+#   (x)     capture group       -> %(x)
+#   (?:x)   non-capturing group -> %(x)
+#   (?>x)   atomic group        -> %(x)@>
+#   (?=x)   lookahead           -> %(x)@=     x must follow
+#   (?!x)   negative lookahead  -> %(x)@!     x must not follow
+#   (?<=x)  lookbehind          -> %(x)@<=    x must come before
+#   (?<!x)  negative lookbehind -> %(x)@<!    x must not come before
+# Capture groups become %( too: Vim never needs the captured text, the parser
+# only numbers them so the grammar's "captures" can refer to them
+GROUPS = {"(": ")", "(?:": ")", "(?>": ")@>", "(?=": ")@=", "(?!": ")@!", "(?<=": ")@<=", "(?<!": ")@<!"}
+
+# Maps an Oniguruma escape letter -> the Vim escape for the same set of
+# characters, e.g. "h" -> r"\x". Uppercase is the opposite set (\W = any
+# non-word character). Escaped letters not listed here or in CONTROL are an
+# error (see escape_char).
+#   \w  word character: letter, digit or _    -> \w
+#   \s  whitespace: space, tab, newline ...   -> \s
+#   \d  digit 0-9                             -> \d
+#   \h  hex digit 0-9 a-f A-F                 -> \x   (Vim's \h means something
+#                                                      else: letter or _)
+ESC = {"w": r"\w", "W": r"\W", "s": r"\s", "S": r"\S", "d": r"\d", "D": r"\D", "h": r"\x", "H": r"\X"}
+
+# Maps an escape letter for an invisible character -> that actual character,
+# e.g. "t" -> a real tab. The parser stores \t \n \r as plain ("char", c)
+# nodes, the same as a typed letter:
+#   \t  tab
+#   \n  newline
+#   \r  carriage return
+CONTROL = {"t": "\t", "n": "\n", "r": "\r"}
+
+
+def parse(src):
+    """Returns (tree, ignore_case, number of capture groups)."""
+    toks = TOKEN.findall(src)
+    icase = toks[:1] == ["(?i)"]
+    toks = toks[icase:][::-1]
+    count = [0]
+
+    def alt():
+        branches = [seq()]
+        while toks and toks[-1] == "|":
+            toks.pop()
+            branches.append(seq())
+        return branches[0] if len(branches) == 1 else ("alt", branches)
+
+    def seq():
+        items = []
+        while toks and toks[-1] not in ("|", ")"):
+            t = toks.pop()
+            q = QUANTIFIER_PARTS.fullmatch(t)
+            if q:
+                if not items or items[-1][0] in ("rep", "anchor"):
+                    raise ConvertError(f"nothing to repeat before {t!r}")
+                sym, lo, comma, hi, lazy = q.groups()
+                lo, hi = {"*": (0, None), "+": (1, None), "?": (0, 1)}[sym] if sym else (
+                    int(lo), int(hi) if hi else None if comma else int(lo))
+                items[-1] = ("rep", items[-1], lo, hi, bool(lazy))
+            elif t in GROUPS:
+                index = None
+                if t == "(":
+                    count[0] += 1
+                    index = count[0]
+                child = alt()
+                if not toks or toks.pop() != ")":
+                    raise ConvertError("missing ')'")
+                items.append(("group", GROUPS[t], child, index))
+            elif t.startswith("[") and len(t) > 1:
+                items.append(("class", t))
+            elif t in ("^", "$"):
+                items.append(("anchor", "\\_" + t))
+            elif t == ".":
+                items.append(("any", "."))
+            elif t == r"\b":
+                items.append(("wordb",))
+            elif t[0] == "\\" and t[1:] in ESC:
+                items.append(("esc", t[1]))
+            elif t[0] == "\\":
+                items.append(("char", escape_char(t[1])))
+            elif t.startswith("(?"):
+                raise ConvertError(f"unsupported group {t!r}")
+            else:
+                items.append(("char", t))
+        return ("seq", items)
+
+    node = alt()
+    if toks:
+        raise ConvertError("unbalanced ')'")
+    return node, icase, count[0]
+
+
+def escape_char(c):
+    if c in CONTROL:
+        return CONTROL[c]
+    if c.isalnum():
+        raise ConvertError(f"unsupported escape \\{c}")
+    return c
+
+
 def is_rule(node):
     return "match" in node or "begin" in node
 
@@ -76,6 +215,14 @@ class Converter:
 
         order = []
         self.walk(self.root, order.append, set())
+        for rule in order:
+            for key in ("match", "begin", "end"):
+                if key in rule:
+                    label = self.labels[id(rule)] + ("" if key == "match" else " " + key)
+                    try:
+                        parse(rule[key])
+                    except ConvertError as e:
+                        raise ConvertError(f"{label}: {e} in {rule[key]!r}") from None
         rules_out = [f'" {self.labels[id(rule)]}: {self.names[id(rule)]}' for rule in order]
 
         version = self.g.get("version")
