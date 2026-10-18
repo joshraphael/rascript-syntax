@@ -259,8 +259,8 @@
         "variable-assignment": {
             "patterns": [
                 {
-                    "comment": "left hand side of variable assignment",
-                    "match": "([a-zA-Z_][\\w]*)[\\t ]*=",
+                    "comment": "left hand side of variable assignment, but not of an == comparison",
+                    "match": "([a-zA-Z_][\\w]*)[\\t ]*=(?!=)",
                     "captures": {
                         "1": {
                             "name": "variable.other.assignment.rascript"
