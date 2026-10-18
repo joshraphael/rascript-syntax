@@ -11,6 +11,13 @@
         "statements": {
             "patterns": [
                 {
+                    "comment": "header before comments, since both start with //. These come first because tmlanguage2vim.py gives a rule its Vim priority from where it is first included, and function-definitions also includes #comments",
+                    "include": "#header"
+                },
+                {
+                    "include": "#comments"
+                },
+                {
                     "include": "#controls"
                 },
                 {
@@ -30,12 +37,6 @@
                 },
                 {
                     "include": "#class-definitions"
-                },
-                {
-                    "include": "#header"
-                },
-                {
-                    "include": "#comments"
                 },
                 {
                     "include": "#parentheses"
@@ -114,7 +115,7 @@
             ]
         },
         "function-definitions": {
-            "comment": "force function keyword and function name with open parentheses on same line since this is a more complex capture. Go until functionsignature terminates (either { or =>)",
+            "comment": "a function definition from the function keyword to the ) closing its parameter list, so parameters can span lines. The keyword, name and ( must be on the same line",
             "begin": "(\\bfunction\\b)\\s*(\\w+)\\s*\\(",
             "beginCaptures": {
                 "1" : {
@@ -124,44 +125,24 @@
                     "name": "entity.name.function.rascript"
                 }
             },
-            "end": "\\{|\\=\\>",
+            "end": "\\)",
             "patterns": [
                 {
-                    "include": "#parentheses"
+                    "include": "#comments"
                 },
                 {
-                    "include": "#booleans"
-                },
-                {
-                    "include": "#strings"
-                },
-                {
-                    "include": "#numbers"
-                },
-                {
-                    "include": "#function-names"
-                },
-                {
-                    "comment": "if we detect an assignment, mark the left hand side a parameter",
-                    "match": "(?<!\\=)\\s*(\\w+)\\s*(?=\\=)",
-                    "captures": {
-                        "1": {
-                            "name": "variable.parameter.rascript"
+                    "comment": "default value: everything after = up to the next , or ) is highlighted as usual. Parentheses, blocks and brackets in the value consume their own , and )",
+                    "begin": "=(?!=)",
+                    "end": "(?=[,)])",
+                    "patterns": [
+                        {
+                            "include": "$self"
                         }
-                    }
+                    ]
                 },
                 {
-                    "comment": "if the right hand side of the equals is NOT a function call, boolean, or number, mark the word a variable. Skipped values fall through to their own rules",
-                    "match": "(?<=\\=)\\s*(?!(?:true|false)\\b|\\d)(\\w+)\\b(?!\\s*\\()",
-                    "captures": {
-                        "1": {
-                            "name": "variable.other.rascript"
-                        }
-                    }
-                },
-                {
-                    "comment": "mark everything else as a parameter",
-                    "match": "\\w+",
+                    "comment": "parameter name",
+                    "match": "[a-zA-Z_][\\w]*",
                     "name": "variable.parameter.rascript"
                 }
             ]
