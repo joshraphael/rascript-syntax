@@ -49,10 +49,12 @@
 #   $1-style capture references in scope names aren't filled in; the part of
 #     the scope before them decides the highlight group
 #
-# Behaviour differences: Oniguruma's \w and \d also match non-ASCII letters
-# and digits, Vim's only ASCII. Oniguruma's \s matches any whitespace,
-# including newlines and no-break spaces; Vim's \s only matches space and tab
-# (inside a class, \s is expanded to include \r and \n).
+# Behaviour differences: \w matches non-ASCII letters in both (it becomes Vim's
+# \k, which also counts emoji and other symbols as word characters), but \w
+# inside a class, \W, \d and \D only cover ASCII in Vim, while Oniguruma's
+# also cover non-ASCII letters and digits. Oniguruma's \s matches any
+# whitespace, including newlines and no-break spaces; Vim's \s only matches
+# space and tab (inside a class, \s is expanded to include \r and \n).
 
 import argparse
 import datetime
@@ -127,12 +129,15 @@ GROUPS = {"(": ")", "(?:": ")", "(?>": ")@>", "(?=": ")@=", "(?!": ")@!", "(?<="
 # characters, e.g. "h" -> r"\x". Uppercase is the opposite set (\W = any
 # non-word character). Escaped letters not listed here or in CONTROL are an
 # error (see escape_char).
-#   \w  word character: letter, digit or _    -> \w
+#   \w  word character: letter, digit or _    -> \k   (Vim's \w is ASCII only;
+#                                                      \k is a keyword character
+#                                                      from syntax iskeyword, which
+#                                                      includes non-ASCII letters)
 #   \s  whitespace: space, tab, newline ...   -> \s
 #   \d  digit 0-9                             -> \d
 #   \h  hex digit 0-9 a-f A-F                 -> \x   (Vim's \h means something
 #                                                      else: letter or _)
-ESC = {"w": r"\w", "W": r"\W", "s": r"\s", "S": r"\S", "d": r"\d", "D": r"\D", "h": r"\x", "H": r"\X"}
+ESC = {"w": r"\k", "W": r"\W", "s": r"\s", "S": r"\S", "d": r"\d", "D": r"\D", "h": r"\x", "H": r"\X"}
 
 # Maps an escape letter for an invisible character -> that actual character,
 # e.g. "t" -> a real tab. The parser stores \t \n \r as plain ("char", c)
