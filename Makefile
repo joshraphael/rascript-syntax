@@ -12,6 +12,9 @@ clean:
 generate: clean
 	./scripts/generate.sh
 
+test:
+	./scripts/test.sh
+
 sublime: generate
 	cd gen && zip -r RAScript.sublime-package rascript.tmLanguage
 	cp gen/rascript.tmLanguage ~/.config/sublime-text/Packages/User
