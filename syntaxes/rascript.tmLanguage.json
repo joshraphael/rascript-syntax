@@ -11,6 +11,13 @@
         "statements": {
             "patterns": [
                 {
+                    "comment": "header before comments, since both start with //. These come first because tmlanguage2vim.py gives a rule its Vim priority from where it is first included, and function-definitions also includes #comments",
+                    "include": "#header"
+                },
+                {
+                    "include": "#comments"
+                },
+                {
                     "include": "#controls"
                 },
                 {
@@ -32,10 +39,16 @@
                     "include": "#class-definitions"
                 },
                 {
-                    "include": "#header"
+                    "include": "#lambdas"
                 },
                 {
-                    "include": "#comments"
+                    "include": "#parentheses"
+                },
+                {
+                    "include": "#blocks"
+                },
+                {
+                    "include": "#brackets"
                 },
                 {
                     "include": "#variable-language-this"
@@ -105,7 +118,7 @@
             ]
         },
         "function-definitions": {
-            "comment": "force function keyword and function name with open parentheses on same line since this is a more complex capture. Go until functionsignature terminates (either { or =>)",
+            "comment": "a function definition from the function keyword to the ) closing its parameter list, so parameters can span lines. The keyword, name and ( must be on the same line",
             "begin": "(\\bfunction\\b)\\s*(\\w+)\\s*\\(",
             "beginCaptures": {
                 "1" : {
@@ -115,44 +128,24 @@
                     "name": "entity.name.function.rascript"
                 }
             },
-            "end": "\\{|\\=\\>",
+            "end": "\\)",
             "patterns": [
                 {
-                    "include": "#inner-functions"
+                    "include": "#comments"
                 },
                 {
-                    "include": "#booleans"
-                },
-                {
-                    "include": "#strings"
-                },
-                {
-                    "include": "#numbers"
-                },
-                {
-                    "include": "#function-names"
-                },
-                {
-                    "comment": "if we detect an assignment, mark the left hand side a parameter",
-                    "match": "(?<!\\=)\\s*(\\w+)\\s*(?=\\=)",
-                    "captures": {
-                        "1": {
-                            "name": "variable.parameter.rascript"
+                    "comment": "default value: everything after = up to the next , or ) is highlighted as usual. Parentheses, blocks and brackets in the value consume their own , and )",
+                    "begin": "=(?!=)",
+                    "end": "(?=[,)])",
+                    "patterns": [
+                        {
+                            "include": "$self"
                         }
-                    }
+                    ]
                 },
                 {
-                    "comment": "if the right hand side of the equals is NOT a function call, boolean, or number, mark the word a variable. Skipped values fall through to their own rules",
-                    "match": "(?<=\\=)\\s*(?!(?:true|false)\\b|\\d)(\\w+)\\b(?!\\s*\\()",
-                    "captures": {
-                        "1": {
-                            "name": "variable.other.rascript"
-                        }
-                    }
-                },
-                {
-                    "comment": "mark everything else as a parameter",
-                    "match": "\\w+",
+                    "comment": "parameter name",
+                    "match": "[a-zA-Z_][\\w]*",
                     "name": "variable.parameter.rascript"
                 }
             ]
@@ -160,22 +153,86 @@
         "function-names": {
             "patterns": [
                 {
-                    "match": "(\\b(byte|word|tbyte|dword|bit0|bit1|bit2|bit3|bit4|bit5|bit6|bit7|bit|low4|high4|bitcount|word_be|tbyte_be|dword_be|float|float_be|mbf32|mbf32_le|double32|double32_be|prev|prior|bcd|identity_transform|ascii_string_equals|unicode_string_equals|remembered|repeated|once|tally|deduct|never|unless|measured|trigger_when|disable_when|always_true|always_false|format|substring|length|range|array_push|array_pop|array_map|array_contains|array_reduce|array_filter|field_map|dictionary_contains_key|any_of|all_of|none_of|sum_of|tally_of|max_of|assert|achievement|achievement_set|rich_presence_display|rich_presence_value|rich_presence_lookup|rich_presence_ascii_string_lookup|rich_presence_macro|rich_presence_conditional_display|leaderboard|__ornext)\\b|(\\w+))\\s*(?=\\()",
-                    "captures": {
+                    "comment": "a function call from its name to the closing ), so arguments can span lines. Named arguments (title = ...) are scoped as parameters of the call",
+                    "name": "meta.function-call.rascript",
+                    "begin": "(\\b(byte|word|tbyte|dword|bit0|bit1|bit2|bit3|bit4|bit5|bit6|bit7|bit|low4|high4|bitcount|word_be|tbyte_be|dword_be|float|float_be|mbf32|mbf32_le|double32|double32_be|prev|prior|bcd|identity_transform|ascii_string_equals|unicode_string_equals|remembered|repeated|once|tally|deduct|never|unless|measured|trigger_when|disable_when|always_true|always_false|format|substring|length|range|array_push|array_pop|array_map|array_contains|array_reduce|array_filter|field_map|dictionary_contains_key|any_of|all_of|none_of|sum_of|tally_of|max_of|assert|achievement|achievement_set|rich_presence_display|rich_presence_value|rich_presence_lookup|rich_presence_ascii_string_lookup|rich_presence_macro|rich_presence_conditional_display|leaderboard|__ornext)\\b|(\\w+))\\s*\\(",
+                    "beginCaptures": {
                         "2": {
                             "name": "support.function.rascript"
                         },
                         "3": {
                             "name": "entity.name.function.rascript"
                         }
+                    },
+                    "end": "\\)",
+                    "patterns": [
+                        {
+                            "include": "#lambdas"
+                        },
+                        {
+                            "comment": "named argument: the name in name = value, but not in name == value",
+                            "match": "([a-zA-Z_][\\w]*)[\\t ]*(?==(?!=))",
+                            "captures": {
+                                "1": {
+                                    "name": "variable.parameter.function-call.rascript"
+                                }
+                            }
+                        },
+                        {
+                            "include": "$self"
+                        }
+                    ]
+                }
+            ]
+        },
+        "lambdas": {
+            "patterns": [
+                {
+                    "comment": "lambda with parameters in parentheses: (a, b) => ... The ( and the names up to ) => must be on one line",
+                    "begin": "\\((?=[\\w\\t ,]*\\)[\\t ]*=>)",
+                    "end": "\\)",
+                    "patterns": [
+                        {
+                            "match": "[a-zA-Z_][\\w]*",
+                            "name": "variable.parameter.rascript"
+                        }
+                    ]
+                },
+                {
+                    "comment": "lambda with one parameter and no parentheses: v => ...",
+                    "match": "([a-zA-Z_][\\w]*)[\\t ]*(?==>)",
+                    "captures": {
+                        "1": {
+                            "name": "variable.parameter.rascript"
+                        }
                     }
                 }
             ]
         },
-        "inner-functions": {
-            "comment": "this prevents the function argument parser section to ignore inner function variables being marked as parameters by just passing them over",
+        "parentheses": {
+            "comment": "matched ( ) pairs, so a region containing them can't end on their ) or on a , inside them. The contents are highlighted as usual",
             "begin": "\\(",
             "end": "\\)",
+            "patterns": [
+                {
+                    "include": "$self"
+                }
+            ]
+        },
+        "blocks": {
+            "comment": "matched { } pairs, so a region containing them can't end on a ) or , inside them. The contents are highlighted as usual",
+            "begin": "\\{",
+            "end": "\\}",
+            "patterns": [
+                {
+                    "include": "$self"
+                }
+            ]
+        },
+        "brackets": {
+            "comment": "matched [ ] pairs, so a region containing them can't end on a ) or , inside them. The contents are highlighted as usual",
+            "begin": "\\[",
+            "end": "\\]",
             "patterns": [
                 {
                     "include": "$self"
