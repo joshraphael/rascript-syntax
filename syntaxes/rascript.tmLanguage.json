@@ -149,7 +149,7 @@
                 },
                 {
                     "name": "constant.numeric.hexadecimal.rascript",
-                    "match": "(?i)\\$\\b\\h+\\b|\\b0x\\h+\\b"
+                    "match": "\\b0x\\h+\\b"
                 }
             ]
         },
