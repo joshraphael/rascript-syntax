@@ -11,15 +11,16 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: make deps
       - run: make generate
       - name: Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           body: Release tag ${{ github.ref_name }}
           files: |
             gen/rascript.tmLanguage.json
             gen/rascript.tmLanguage
+            gen/rascript.vim
             gen/RAScript.xml
             gen/rascript.js
