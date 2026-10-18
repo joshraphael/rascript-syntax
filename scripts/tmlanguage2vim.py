@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import datetime
 import json
 import re
@@ -766,9 +767,10 @@ class Converter:
 
 
 def main():
-    if len(sys.argv) != 2:
-        sys.exit("usage: tmlanguage2vim.py INPUT.tmLanguage.json")
-    with open(sys.argv[1], encoding="utf-8") as f:
+    parser = argparse.ArgumentParser(description="Convert a TextMate grammar into a Vim syntax file, written to stdout.")
+    parser.add_argument("grammar", help="TextMate grammar to convert (.tmLanguage.json)")
+    args = parser.parse_args()
+    with open(args.grammar, encoding="utf-8") as f:
         grammar = json.load(f)
     try:
         result = Converter(grammar).convert()
