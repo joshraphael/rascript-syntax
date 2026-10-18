@@ -39,6 +39,9 @@
                     "include": "#class-definitions"
                 },
                 {
+                    "include": "#lambdas"
+                },
+                {
                     "include": "#parentheses"
                 },
                 {
@@ -164,6 +167,9 @@
                     "end": "\\)",
                     "patterns": [
                         {
+                            "include": "#lambdas"
+                        },
+                        {
                             "comment": "named argument: the name in name = value, but not in name == value",
                             "match": "([a-zA-Z_][\\w]*)[\\t ]*(?==(?!=))",
                             "captures": {
@@ -176,6 +182,30 @@
                             "include": "$self"
                         }
                     ]
+                }
+            ]
+        },
+        "lambdas": {
+            "patterns": [
+                {
+                    "comment": "lambda with parameters in parentheses: (a, b) => ... The ( and the names up to ) => must be on one line",
+                    "begin": "\\((?=[\\w\\t ,]*\\)[\\t ]*=>)",
+                    "end": "\\)",
+                    "patterns": [
+                        {
+                            "match": "[a-zA-Z_][\\w]*",
+                            "name": "variable.parameter.rascript"
+                        }
+                    ]
+                },
+                {
+                    "comment": "lambda with one parameter and no parentheses: v => ...",
+                    "match": "([a-zA-Z_][\\w]*)[\\t ]*(?==>)",
+                    "captures": {
+                        "1": {
+                            "name": "variable.parameter.rascript"
+                        }
+                    }
                 }
             ]
         },
