@@ -340,12 +340,19 @@ def edge_is_word(node, at_end):
 
 # --------------------------------------------------------------------------
 # Regex writing: turns a parsed tree back into a Vim very magic regex. The
-# converter writes every pattern as /\v.../ because very magic is closest to
-# Oniguruma: ( ) | + ? { work without backslashes.
+# converter writes every pattern as /\%#=1\v.../ (see ENGINE) because very
+# magic is closest to Oniguruma: ( ) | + ? { work without backslashes.
 #   e.g. tree of "0x[0-9a-fA-F]+" -> 0x[0-9a-fA-F]+
 #        tree of "a{2,}?"         -> a{-2,}
 #        tree of "(?<=\.)\w"      -> %(\.)@<=\w
 # --------------------------------------------------------------------------
+
+# Starts every pattern to pick Vim's backtracking regex engine (\%#=1) instead
+# of its default NFA engine. Grammars use long word lists and lookarounds
+# (e.g. the built-in function names), which the NFA engine is many times
+# slower at; on a 1,000 line RAScript file highlighting went from about 3.8s
+# to 0.3s, and long lines no longer lose highlighting
+ENGINE = r"\%#=1"
 
 
 def quantifier(lo, hi, lazy):
@@ -647,13 +654,14 @@ class Converter:
 
     @staticmethod
     def pattern(node, icase, target=None):
-        r"""Wraps a tree as a Vim pattern: /\v.../, with \c if case-insensitive.
+        r"""Wraps a tree as a Vim pattern: /\%#=1\v.../ (see ENGINE), with \c
+        if case-insensitive.
 
         With target, the pattern matches only that capture group (see
         render_capture).
         """
         body = render(node) if target is None else render_capture(node, target)
-        return "/\\v" + "\\c" * icase + body + "/"
+        return "/" + ENGINE + "\\v" + "\\c" * icase + body + "/"
 
     def captures(self, regex, caps, name, label, prefix, out):
         r"""Parses a rule's regex, writes its capture items and works out the
@@ -706,7 +714,7 @@ class Converter:
         r"""A begin/end rule -> a syntax region line (two lines with begin captures).
 
         e.g. strings: syntax region rascriptStrings matchgroup=rascriptStrings_begin
-             start=/\v\"/ matchgroup=rascriptStrings_end end=/\v\"/
+             start=/\%#=1\v\"/ matchgroup=rascriptStrings_end end=/\%#=1\v\"/
         matchgroup= puts the begin and end text in their own groups ({g}_begin,
         {g}_end) so they can be colored separately from the body, and so the
         region's contents are never matched inside them. contains= lists the
@@ -716,7 +724,7 @@ class Converter:
         cover part of the begin text need a different shape: a syntax match
         for the begin text (which can contain the capture items) whose
         nextgroup= is the body region, starting right where the match ended:
-          syntax region {g}_body start=/\v%(\_.)@=/ matchgroup={g}_end end=... contained
+          syntax region {g}_body start=/\%#=1\v%(\_.)@=/ matchgroup={g}_end end=... contained
           syntax match {g} <begin> contains={g}_bc1,... nextgroup={g}_body
         %(\_.)@= is zero-width and matches anywhere, so the body starts
         immediately; contained keeps it from starting anywhere else.
@@ -735,7 +743,7 @@ class Converter:
             body = g + "_body"
             lines.append(f"syntax match {g} {begin} contains={','.join(bgroups)} nextgroup={body}{contained}")
             self.link(g, bwhole)
-            start, contained = r"start=/\v%(\_.)@=/", " contained"
+            start, contained = "start=/" + ENGINE + r"\v%(\_.)@=/", " contained"
         else:
             self.link(g + "_begin", bwhole)
             start = f"matchgroup={g}_begin start={begin}"
