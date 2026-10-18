@@ -10,9 +10,9 @@ run `make generate` to create the grammar files in the `gen` folder. The current
 
 * rascript.tmLanguage.json -- vscode, linguist
 * rascript.tmLanguage -- sublime
+* rascript.vim -- Vim / Neovim
 * RAScript.xml -- Notepad++
 * rascript.js -- highlight.js
-* rascript.vim -- Vim / Neovim
 
 ## Download
 
