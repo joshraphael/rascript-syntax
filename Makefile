@@ -15,3 +15,8 @@ generate: clean
 sublime: generate
 	cd gen && zip -r RAScript.sublime-package rascript.tmLanguage
 	cp gen/rascript.tmLanguage ~/.config/sublime-text/Packages/User
+
+vim: generate
+	mkdir -p ~/.vim/syntax ~/.vim/ftdetect
+	cp gen/rascript.vim ~/.vim/syntax/rascript.vim
+	echo 'autocmd BufRead,BufNewFile *.rascript setfiletype rascript' > ~/.vim/ftdetect/rascript.vim
