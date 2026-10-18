@@ -38,6 +38,15 @@
                     "include": "#comments"
                 },
                 {
+                    "include": "#parentheses"
+                },
+                {
+                    "include": "#blocks"
+                },
+                {
+                    "include": "#brackets"
+                },
+                {
                     "include": "#variable-language-this"
                 },
                 {
@@ -118,7 +127,7 @@
             "end": "\\{|\\=\\>",
             "patterns": [
                 {
-                    "include": "#inner-functions"
+                    "include": "#parentheses"
                 },
                 {
                     "include": "#booleans"
@@ -172,10 +181,30 @@
                 }
             ]
         },
-        "inner-functions": {
-            "comment": "this prevents the function argument parser section to ignore inner function variables being marked as parameters by just passing them over",
+        "parentheses": {
+            "comment": "matched ( ) pairs, so a region containing them can't end on their ) or on a , inside them. The contents are highlighted as usual",
             "begin": "\\(",
             "end": "\\)",
+            "patterns": [
+                {
+                    "include": "$self"
+                }
+            ]
+        },
+        "blocks": {
+            "comment": "matched { } pairs, so a region containing them can't end on a ) or , inside them. The contents are highlighted as usual",
+            "begin": "\\{",
+            "end": "\\}",
+            "patterns": [
+                {
+                    "include": "$self"
+                }
+            ]
+        },
+        "brackets": {
+            "comment": "matched [ ] pairs, so a region containing them can't end on a ) or , inside them. The contents are highlighted as usual",
+            "begin": "\\[",
+            "end": "\\]",
             "patterns": [
                 {
                     "include": "$self"
