@@ -98,6 +98,12 @@
                     "name": "string.quoted.double.rascript",
                     "patterns": [
                         {
+                            "comment": "unicode escape: \\u and exactly four hex digits, one character (\\u00e9 is é)",
+                            "match": "\\\\u\\h{4}",
+                            "name": "constant.character.escape.rascript"
+                        },
+                        {
+                            "comment": "any other escape: RATools reads \\t \\n \\r, and drops the backslash before any other character",
                             "match": "\\\\.",
                             "name": "constant.character.escape.rascript"
                         },
