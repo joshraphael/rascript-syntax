@@ -66,6 +66,14 @@ MAINTAINER = "Joshua Raphael"
 URL = "https://github.com/joshraphael/rascript-syntax"
 REMARK = "Syntax grammar for RAScript, a RetroAchievements.org DSL"
 
+# Files bigger than SYNC_MAX_BYTES don't highlight from the top of the file
+# (syntax sync fromstart), which takes about 2 microseconds per byte, ~0.4s at
+# 200 KB; they start SYNC_MINLINES lines above the screen instead. SYNC_MINLINES
+# only needs to be longer than any block comment or string: the longest in the
+# RAScripts on GitHub are 291 and 56 lines
+SYNC_MAX_BYTES = 200000
+SYNC_MINLINES = 1000
+
 
 class ConvertError(Exception):
     pass
@@ -818,7 +826,15 @@ class Converter:
                 '" Word characters for the < and > word boundaries in patterns (Vim\'s',
                 '" version of the grammar\'s \\b); fixed here so the user\'s iskeyword',
                 '" setting can\'t change highlighting, e.g. matching "if" inside "my_if"',
-                "syntax iskeyword @,48-57,_,192-255", "syntax sync fromstart", ""]
+                "syntax iskeyword @,48-57,_,192-255", "",
+                '" Highlight from the top of the file so multi-line comments and strings',
+                f'" are always right, except in files over {SYNC_MAX_BYTES // 1000} KB, where that is slow;',
+                f'" those start {SYNC_MINLINES} lines above the screen instead',
+                f"if line2byte(line('$') + 1) > {SYNC_MAX_BYTES}",
+                f"  syntax sync minlines={SYNC_MINLINES}",
+                "else",
+                "  syntax sync fromstart",
+                "endif", ""]
         out += ['" Repository entries'] + clusters_out + [""] if clusters_out else []
         out += ['" Rules: later definitions take priority'] + rules_out + [""]
         out += ['" Captures'] + caps_out + [""] if caps_out else []
