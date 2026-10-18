@@ -64,6 +64,21 @@
         "controls": {
             "patterns": [
                 {
+                    "comment": "if with its condition in parentheses: the condition is its own region so if (x) { isn't read as the lambda (x) { ... }",
+                    "begin": "\\b(if)[\\t ]*\\(",
+                    "beginCaptures": {
+                        "1": {
+                            "name": "keyword.control.rascript"
+                        }
+                    },
+                    "end": "\\)",
+                    "patterns": [
+                        {
+                            "include": "$self"
+                        }
+                    ]
+                },
+                {
                     "comment": "for loop header: in is only a keyword after for and the loop variable, elsewhere it is a normal name (in = 1, function in(...))",
                     "match": "\\b(for)[\\t ]+(\\b(?!\\d)\\w+)[\\t ]+(in)\\b",
                     "captures": {
@@ -267,8 +282,8 @@
         "lambdas": {
             "patterns": [
                 {
-                    "comment": "lambda with parameters in parentheses: (a, b) => ... The ( and the names up to ) => must be on one line",
-                    "begin": "\\((?=(?:\\w|[\\t ,])*\\)[\\t ]*=>)",
+                    "comment": "lambda with parameters in parentheses: (a, b) => ... or (a, b) { ... }. The ( and the names up to ) => or ) { must be on one line",
+                    "begin": "\\((?=(?:\\w|[\\t ,])*\\)[\\t ]*(?:=>|\\{))",
                     "end": "\\)",
                     "patterns": [
                         {
