@@ -64,8 +64,23 @@
         "controls": {
             "patterns": [
                 {
+                    "comment": "for loop header: in is only a keyword after for and the loop variable, elsewhere it is a normal name (in = 1, function in(...))",
+                    "match": "\\b(for)[\\t ]+(\\b(?!\\d)\\w+)[\\t ]+(in)\\b",
+                    "captures": {
+                        "1": {
+                            "name": "keyword.control.rascript"
+                        },
+                        "2": {
+                            "name": "variable.other.rascript"
+                        },
+                        "3": {
+                            "name": "keyword.control.rascript"
+                        }
+                    }
+                },
+                {
                     "name": "keyword.control.rascript",
-                    "match": "\\b(if|else|for|in|return)\\b"
+                    "match": "\\b(if|else|for|return)\\b"
                 }
             ]
         },
