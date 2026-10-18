@@ -71,6 +71,7 @@ function ImportantWordRegex() {
         "max_of",
         "assert",
         "achievement",
+        "achievement_set",
         "rich_presence_display",
         "rich_presence_value",
         "rich_presence_lookup",
