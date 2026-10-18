@@ -1,5 +1,59 @@
 #!/usr/bin/env python3
 
+# Regex support. Grammar regexes use Oniguruma syntax; this is what the
+# converter can translate to Vim. Anything unsupported stops the build with
+# an error naming the rule, except where noted under "Not detected".
+#
+# Supported:
+#   literal characters, including non-ASCII (é, emoji)
+#   escaped punctuation      \. \( \/ \" \- \  ...
+#   control characters       \t \n \r
+#   character sets           \w \W \s \S \d \D \h \H
+#   word boundary            \b
+#   any character, anchors   .  ^  $
+#   classes                  [abc] [^abc] [a-z] []a] [a-], containing literal
+#                            or escaped characters, \t \n \r and \w \s \d \h
+#   alternation              a|b, including empty branches
+#   groups                   (x) (?:x) (?>x)
+#   lookarounds              (?=x) (?!x) (?<=x) (?<!x)
+#   repeats                  * + ? {n} {n,} {n,m}, and lazy *? +? ?? {n,m}?
+#   case-insensitive         (?i), only at the very start of the regex
+#
+# Unsupported (error):
+#   (?i) anywhere else, other flags and flag groups: (?m) (?x) (?i:x) (?-i)
+#   named groups, back-references and subexpression calls:
+#     (?<name>x) (?'name'x) \1 \k<name> \g<name>
+#   comment groups (?#...), absent groups (?~x), conditionals (?(1)x|y)
+#   escaped letters/digits not listed above, e.g. \A \z \Z \G \K \B \R \X
+#     \y \Y \a \e \f \v \0 \xHH \x{H} \uHHHH \o{...} \cX \C-x \M-x \p{L} \P{L}
+#   inside a class: \W \S \D \H \b \xHH \p{L} ..., POSIX classes [[:alpha:]],
+#     nested classes [a[b]] and intersections [a-z&&[^x]]
+#   repeats: {,n} (write {0,n}), possessive *+ ++ ?+ {n,m}+, a repeat of a
+#     repeat (a** a{1,2}{2}), a repeat with nothing before it (*a {1})
+#   unbalanced parentheses
+#
+# Rule support. Supported: match rules, begin/end rules, name, contentName,
+# captures, beginCaptures and endCaptures with names, patterns, repository,
+# and includes of #key, $self and $base. comment is allowed anywhere, and
+# top-level metadata (version, fileTypes, uuid, ...) is ignored.
+# Unsupported (error):
+#   while and applyEndPatternLast, and a begin rule with no end
+#   end captures of a group (only capture "0" of an end regex is supported)
+#   captures with their own patterns, or for groups that don't exist
+#   captures inside lookarounds
+#   includes of other grammars (source.js) or of unknown repository keys
+#   any other key, e.g. injections, disabled, or a repository nested inside
+#     a rule (see GRAMMAR_KEYS, RULE_KEYS and CAPTURE_KEYS)
+#
+# Not detected:
+#   $1-style capture references in scope names aren't filled in; the part of
+#     the scope before them decides the highlight group
+#
+# Behaviour differences: Oniguruma's \w and \d also match non-ASCII letters
+# and digits, Vim's only ASCII. Oniguruma's \s matches any whitespace,
+# including newlines and no-break spaces; Vim's \s only matches space and tab
+# (inside a class, \s is expanded to include \r and \n).
+
 import argparse
 import datetime
 import json
