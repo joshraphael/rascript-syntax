@@ -145,7 +145,7 @@
                 },
                 {
                     "comment": "parameter name",
-                    "match": "(?!\\d)\\w+",
+                    "match": "\\b(?!\\d)\\w+",
                     "name": "variable.parameter.rascript"
                 }
             ]
@@ -171,7 +171,7 @@
                         },
                         {
                             "comment": "named argument: the name in name = value, but not in name == value",
-                            "match": "((?!\\d)\\w+)[\\t ]*(?==(?!=))",
+                            "match": "(\\b(?!\\d)\\w+)[\\t ]*(?==(?!=))",
                             "captures": {
                                 "1": {
                                     "name": "variable.parameter.function-call.rascript"
@@ -193,14 +193,14 @@
                     "end": "\\)",
                     "patterns": [
                         {
-                            "match": "(?!\\d)\\w+",
+                            "match": "\\b(?!\\d)\\w+",
                             "name": "variable.parameter.rascript"
                         }
                     ]
                 },
                 {
                     "comment": "lambda with one parameter and no parentheses: v => ...",
-                    "match": "((?!\\d)\\w+)[\\t ]*(?==>)",
+                    "match": "(\\b(?!\\d)\\w+)[\\t ]*(?==>)",
                     "captures": {
                         "1": {
                             "name": "variable.parameter.rascript"
@@ -242,7 +242,7 @@
         "class-definitions": {
             "patterns": [
                 {
-                    "match": "(\\bclass\\b)[\\t ]*((?!\\d)\\w+)",
+                    "match": "(\\bclass\\b)[\\t ]*(\\b(?!\\d)\\w+)",
                     "captures": {
                         "1": {
                             "name": "keyword.class.rascript"
@@ -319,7 +319,7 @@
             "patterns": [
                 {
                     "comment": "left hand side of variable assignment, but not of an == comparison",
-                    "match": "((?!\\d)\\w+)[\\t ]*=(?!=)",
+                    "match": "(\\b(?!\\d)\\w+)[\\t ]*=(?!=)",
                     "captures": {
                         "1": {
                             "name": "variable.other.assignment.rascript"
@@ -332,7 +332,7 @@
             "patterns": [
                 {
                     "comment": "different variables around the file being used, not assignment",
-                    "match": "((?!\\d)\\w+)",
+                    "match": "(\\b(?!\\d)\\w+)",
                     "captures": {
                         "1": {
                             "name": "variable.other.rascript"
