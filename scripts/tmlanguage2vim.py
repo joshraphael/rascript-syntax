@@ -466,6 +466,23 @@ def scope_to_vim(scope):
 # patterns, written in Vim as the cluster @<lang>Top
 SELF = "$self"
 
+# Keys the converter understands, so a grammar feature it doesn't handle is
+# reported instead of silently dropped (e.g. injections, disabled, or a
+# repository nested inside a rule). Top-level metadata that doesn't affect
+# highlighting is allowed. while, applyEndPatternLast and capture patterns
+# are listed so they reach their own, more specific errors later.
+GRAMMAR_KEYS = {"$schema", "name", "scopeName", "version", "fileTypes", "firstLineMatch", "foldingStartMarker",
+                "foldingStopMarker", "uuid", "information_for_contributors", "comment", "patterns", "repository"}
+RULE_KEYS = {"comment", "name", "contentName", "match", "begin", "end", "captures", "beginCaptures",
+             "endCaptures", "patterns", "include", "while", "applyEndPatternLast"}
+CAPTURE_KEYS = {"comment", "name", "patterns"}
+
+
+def check_keys(node, allowed, label):
+    unknown = sorted(set(node) - allowed)
+    if unknown:
+        raise ConvertError(f"{label}: unsupported key{'s' * (len(unknown) > 1)} {', '.join(map(repr, unknown))}")
+
 
 def is_rule(node):
     return "match" in node or "begin" in node
@@ -487,7 +504,15 @@ class Converter:
         self.used_clusters = set()  # repository keys (or SELF) that something includes
 
     def assign(self, node, base, label):
-        """Names each rule after its repository key and position."""
+        """Names each rule after its repository key and position, and checks
+        that every key in the grammar is one the converter handles."""
+        check_keys(node, RULE_KEYS, label)
+        for key in ("captures", "beginCaptures", "endCaptures"):
+            for n, cap in node.get(key, {}).items():
+                check_keys(cap, CAPTURE_KEYS, f"{label} {key} {n}")
+        for p in node.get("patterns", []):
+            if "include" in p:
+                check_keys(p, RULE_KEYS, f"{label} include {p['include']}")
         if "include" in node:
             return
         nested = is_rule(node)
@@ -601,8 +626,12 @@ class Converter:
                 raise ConvertError(f"{label}: capture {key} is not supported")
             if key == "0" or not cap.get("name") or int(key) in whole_groups:
                 continue
+            try:
+                pat = self.pattern(node, icase, int(key))
+            except ConvertError as e:
+                raise ConvertError(f"{label}: capture {key}: {e}") from None
             groups.append(f"{prefix}{key}")
-            out.append(f"syntax match {groups[-1]} {self.pattern(node, icase, int(key))} contained")
+            out.append(f"syntax match {groups[-1]} {pat} contained")
             self.link(groups[-1], cap["name"])
         return whole, groups, self.pattern(node, icase)
 
@@ -635,6 +664,8 @@ class Converter:
         unsupported = {"while", "applyEndPatternLast"} & rule.keys()
         if unsupported:
             raise ConvertError(f"{label}: {', '.join(unsupported)} is not supported")
+        if "end" not in rule:
+            raise ConvertError(f"{label}: begin without end is not supported")
         name = rule.get("name")
         # "captures" applies to both begin and end unless they have their own
         bwhole, bgroups, begin = self.captures(rule["begin"], rule.get("beginCaptures", rule.get("captures", {})),
@@ -662,6 +693,7 @@ class Converter:
         return lines
 
     def convert(self):
+        check_keys(self.grammar, GRAMMAR_KEYS, "grammar")
         for key, entry in self.repository.items():
             self.assign(entry, self.lang + camel(key), "#" + key)
         self.assign({"patterns": self.top_patterns}, self.top_name, "patterns")
