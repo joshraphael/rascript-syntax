@@ -1,2 +1,4 @@
 gen/
-scripts/__pycache__/
+__pycache__/
+*.txt
+node_modules/

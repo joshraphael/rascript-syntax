@@ -2,7 +2,7 @@ SHELL := /bin/bash
 
 deps:
 	sudo apt update
-	sudo apt install libplist-utils
+	sudo apt install libplist-utils vim
 
 clean:
 	rm -rf gen/
@@ -11,6 +11,9 @@ clean:
 
 generate: clean
 	./scripts/generate.sh
+
+test:
+	./scripts/test.sh
 
 sublime: generate
 	cd gen && zip -r RAScript.sublime-package rascript.tmLanguage
