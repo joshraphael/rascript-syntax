@@ -2,7 +2,7 @@ SHELL := /bin/bash
 
 deps:
 	sudo apt update
-	sudo apt install libplist-utils
+	sudo apt install libplist-utils vim
 
 clean:
 	rm -rf gen/
