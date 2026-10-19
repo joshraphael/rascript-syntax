@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "description": "Tools for testing the generated grammars",
+  "devDependencies": {
+    "vscode-oniguruma": "2.0.1"
+  }
+}

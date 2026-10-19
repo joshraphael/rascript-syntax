@@ -16,3 +16,8 @@ python3 scripts/validate.py tmlanguage gen/rascript.tmLanguage.json gen/rascript
 # Test the Notepad++ XML parses and its token regexes compile
 echo "checking gen/RAScript.xml"
 python3 scripts/validate.py notepad gen/RAScript.xml
+
+# Test the TextMate grammar regexes compile in Oniguruma, the regex engine VS Code uses
+echo "checking gen/rascript.tmLanguage.json regexes"
+npm ci --silent --prefix scripts
+node scripts/validate.mjs tmlanguage gen/rascript.tmLanguage.json
