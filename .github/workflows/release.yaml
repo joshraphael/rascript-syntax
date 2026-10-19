@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: make deps
-      - run: make generate
+      - run: make test
       - name: Release
         uses: softprops/action-gh-release@v3
         with:
