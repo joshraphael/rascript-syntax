@@ -2,6 +2,7 @@
   "private": true,
   "description": "Tools for testing the generated grammars",
   "devDependencies": {
+    "highlight.js": "11.10.0",
     "vscode-oniguruma": "2.0.1"
   }
 }

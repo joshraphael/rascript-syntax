@@ -21,3 +21,7 @@ python3 scripts/validate.py notepad gen/RAScript.xml
 echo "checking gen/rascript.tmLanguage.json regexes"
 npm ci --silent --prefix scripts
 node scripts/validate.mjs tmlanguage gen/rascript.tmLanguage.json
+
+# Test the highlight.js grammar loads and its regexes compile
+echo "checking gen/rascript.js"
+node scripts/validate.mjs highlightjs gen/rascript.js

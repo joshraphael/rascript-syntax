@@ -43,12 +43,38 @@ async function checkTmlanguage(jsonPath) {
     }
 }
 
+async function checkHighlightjs(jsPath) {
+    // a data: URL always loads as an ES module, whatever folder the file is in
+    const source = fs.readFileSync(jsPath, "utf8");
+    let language;
+    try {
+        language = (await import("data:text/javascript;base64," + Buffer.from(source).toString("base64"))).default;
+    } catch (e) {
+        fail(`${jsPath}: ${e.name}: ${e.message}`);
+    }
+    if (typeof language !== "function") {
+        fail(`${jsPath}: doesn't export a highlight.js language function`);
+    }
+    // debugMode makes highlight.js throw on grammar errors instead of falling
+    // back to plain text; the first highlight compiles every mode's regex
+    const hljs = require("highlight.js/lib/core");
+    hljs.debugMode();
+    hljs.registerLanguage("rascript", language);
+    try {
+        hljs.highlight("", { language: "rascript" });
+    } catch (e) {
+        fail(`${jsPath}: ${e.message}`);
+    }
+}
+
 const [check, ...files] = process.argv.slice(2);
 try {
     if (check === "tmlanguage" && files.length === 1) {
         await checkTmlanguage(files[0]);
+    } else if (check === "highlightjs" && files.length === 1) {
+        await checkHighlightjs(files[0]);
     } else {
-        fail("usage: validate.mjs tmlanguage rascript.tmLanguage.json");
+        fail("usage: validate.mjs tmlanguage rascript.tmLanguage.json | highlightjs rascript.js");
     }
 } catch (e) {
     fail(`${e.name}: ${e.message}`);
