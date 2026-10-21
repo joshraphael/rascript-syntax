@@ -63,6 +63,9 @@
 
             <WordsStyle name="LIGHT-STRING-PLACEHOLDER" styleID="42" fgColor="0F4A85" />
             <WordsStyle name="DARK-STRING-PLACEHOLDER" styleID="43" fgColor="569CD6" />
+
+            <WordsStyle name="LIGHT-STRING-ESCAPE" styleID="44" fgColor="EE0000" />
+            <WordsStyle name="DARK-STRING-ESCAPE" styleID="45" fgColor="D7BA7D" />
         </LexerType>
     </LexerStyles>
     <RAScript version="_GRAMMAR_VERSION_">
@@ -81,6 +84,7 @@
         <Token name="Strings" type="NORMAL" regex='//[^\r\n]*|/\*[\s\S]*?\*/|("(?:\\.|[^"\\])*")' lightStyle="23" darkStyle="24" />
         <Token name="String Placeholder Braces" type="NORMAL" regex="\\.|(\{)[0-9]+(\})" lightStyle="42" darkStyle="43" />
         <Token name="String Placeholder Index" type="NORMAL" regex="\\.|\{([0-9]+)\}" lightStyle="1" darkStyle="2" />
+        <Token name="String Escapes" type="NORMAL" regex="\\u[0-9a-fA-F]{4}|\\." lightStyle="44" darkStyle="45" />
         <Token name="Line Comments" type="NORMAL" regex='"(?:\\.|[^"\\])*"|/\*[\s\S]*?\*/|(//[^\r\n]*)' lightStyle="25" darkStyle="26" />
         <Token name="Block Comments" type="NORMAL" regex='"(?:\\.|[^"\\])*"|//[^\r\n]*|(/\*[\s\S]*?\*/)' lightStyle="27" darkStyle="28" />
         <Token name="Header ID Key" type="NORMAL" regex="(^|\n|\r)//[ \t]*(#ID)[ \t]*=[ \t]*\d+[ \t]*(\n|\r|$)" lightStyle="29" darkStyle="30" />
