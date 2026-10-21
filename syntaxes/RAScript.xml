@@ -69,7 +69,7 @@
         </LexerType>
     </LexerStyles>
     <RAScript version="_GRAMMAR_VERSION_">
-        <Token name="Variables" type="NORMAL" regex="([a-zA-Z_][\w]*)[\t ]*" lightStyle="1" darkStyle="2" />
+        <Token name="Variables" type="NORMAL" regex="\b(?!\d)(\w+)" lightStyle="1" darkStyle="2" />
         <Token name="Controls" type="NORMAL" regex="\b(if|else|for|return)\b" lightStyle="3" darkStyle="4" />
         <Token name="For Loop" type="NORMAL" regex="\b(for)[\t ]+[a-zA-Z_][\w]*[\t ]+(in)\b" lightStyle="3" darkStyle="4" />
         <Token name="This" type="NORMAL" regex="\b(this)\b" lightStyle="5" darkStyle="6" />
