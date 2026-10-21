@@ -80,7 +80,7 @@
         <Token name="Block Comments" type="NORMAL" regex='"(?:\\.|[^"\\])*"|//[^\r\n]*|(/\*[\s\S]*?\*/)' lightStyle="27" darkStyle="28" />
         <Token name="Header ID Key" type="NORMAL" regex="(^|\n|\r)//[ \t]*(#ID)[ \t]*=[ \t]*\d+[ \t]*(\n|\r|$)" lightStyle="29" darkStyle="30" />
         <Token name="Header ID Value" type="NORMAL" regex="(^|\n|\r)//[ \t]*#ID[ \t]*=[ \t]*(\d+)[ \t]*(\n|\r|$)" lightStyle="31" darkStyle="36" />
-        <Token name="Header MinimumVersion Key" type="NORMAL" regex="(^|\n|\r)//[ \t]*(#MinimumVersion)[ \t]*=[ \t]*\d+(\.\d)?[ \t]*(\n|\r|$)" lightStyle="38" darkStyle="39" />
-        <Token name="Header MinimumVersion Value" type="NORMAL" regex="(^|\n|\r)//[ \t]*#MinimumVersion[ \t]*=[ \t]*(\d+(\.\d)?)[ \t]*(\n|\r|$)" lightStyle="40" darkStyle="41" />
+        <Token name="Header MinimumVersion Key" type="NORMAL" regex="(?:^|\n|\r)//[ \t]*(#MinimumVersion)[ \t]*=[ \t]*(?:(?:0\.7[3-9]|1\.[0-4])(?:\.0){0,2}|(?:1\.3\.1|1\.4\.[12])(?:\.0)?)[ \t]*(?:\n|\r|$)" lightStyle="38" darkStyle="39" />
+        <Token name="Header MinimumVersion Value" type="NORMAL" regex="(?:^|\n|\r)//[ \t]*#MinimumVersion[ \t]*=[ \t]*((?:0\.7[3-9]|1\.[0-4])(?:\.0){0,2}|(?:1\.3\.1|1\.4\.[12])(?:\.0)?)[ \t]*(?:\n|\r|$)" lightStyle="40" darkStyle="41" />
     </RAScript>
 </NotepadPlus>
