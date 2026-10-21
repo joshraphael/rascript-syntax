@@ -71,9 +71,9 @@
         <Token name="Hexadecimals" type="NORMAL" regex="\b(0x[a-fA-F0-9]+)\b" lightStyle="11" darkStyle="12" />
         <Token name="Class" type="NORMAL" regex="(\bclass\b)[\t ]*[a-zA-Z_][\w]*" lightStyle="13" darkStyle="14" />
         <Token name="Class Name" type="NORMAL" regex="\bclass\b[\t ]*([a-zA-Z_][\w]*)" lightStyle="15" darkStyle="16" />
-        <Token name="Function" type="NORMAL" regex="(\bfunction\b)[\t ]*[a-zA-Z_][\w]*\(" lightStyle="17" darkStyle="18" />
+        <Token name="Function" type="NORMAL" regex="(\bfunction\b)[\t ]*[a-zA-Z_][\w]*[\t ]*\(" lightStyle="17" darkStyle="18" />
         <Token name="Function Calls" type="NORMAL" regex="\b(?!(?:if|else|for|return|this|true|false)\b)([a-zA-Z_][\w]*)\s*\(" lightStyle="19" darkStyle="20" />
-        <Token name="Function Names" type="NORMAL" regex="\bfunction\b[\t ]*([a-zA-Z_][\w]*)\(" lightStyle="21" darkStyle="22" />
+        <Token name="Function Names" type="NORMAL" regex="\bfunction\b[\t ]*([a-zA-Z_][\w]*)[\t ]*\(" lightStyle="21" darkStyle="22" />
         <Token name="Strings" type="NORMAL" regex='//[^\r\n]*|/\*[\s\S]*?\*/|("(?:\\.|[^"\\])*")' lightStyle="23" darkStyle="24" />
         <Token name="Line Comments" type="NORMAL" regex='"(?:\\.|[^"\\])*"|/\*[\s\S]*?\*/|(//[^\r\n]*)' lightStyle="25" darkStyle="26" />
         <Token name="Block Comments" type="NORMAL" regex='"(?:\\.|[^"\\])*"|//[^\r\n]*|(/\*[\s\S]*?\*/)' lightStyle="27" darkStyle="28" />
