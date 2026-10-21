@@ -100,10 +100,8 @@
             ]
         },
         "booleans": {
-            "patterns": [{
-                "name": "constant.language.boolean.rascript",
-                "match": "\\b(true|false)\\b"
-            }]
+            "name": "constant.language.boolean.rascript",
+            "match": "\\b(?:true|false)\\b"
         },
         "strings": {
             "patterns": [
@@ -221,32 +219,7 @@
                     ]
                 },
                 {
-                    "comment": "a built-in function name at the end of a line, with its ( on a later line (RATools skips whitespace between a name and its parentheses). A // comment may follow the name. The region ends at the first character after the name, or after the arguments' ), that isn't whitespace, ( or a comment. Other names are handled by the next rule",
-                    "name": "meta.function-call.rascript",
-                    "begin": "(?<!\\.)\\b(byte|word|tbyte|dword|bit0|bit1|bit2|bit3|bit4|bit5|bit6|bit7|bit|low4|high4|bitcount|word_be|tbyte_be|dword_be|float|float_be|mbf32|mbf32_le|double32|double32_be|prev|prior|bcd|identity_transform|ascii_string_equals|unicode_string_equals|remembered|repeated|once|tally|deduct|never|unless|measured|trigger_when|disable_when|always_true|always_false|format|substring|length|range|array_push|array_pop|array_map|array_contains|array_reduce|array_filter|field_map|dictionary_contains_key|any_of|all_of|none_of|sum_of|tally_of|max_of|assert|achievement|achievement_set|rich_presence_display|rich_presence_value|rich_presence_lookup|rich_presence_ascii_string_lookup|rich_presence_macro|rich_presence_conditional_display|leaderboard|__ornext)\\b(?=[\\t ]*(?://.*)?$)",
-                    "beginCaptures": {
-                        "1": {
-                            "name": "support.function.rascript"
-                        }
-                    },
-                    "end": "(?=[^\\s(/])",
-                    "patterns": [
-                        {
-                            "include": "#comments"
-                        },
-                        {
-                            "begin": "\\(",
-                            "end": "\\)",
-                            "patterns": [
-                                {
-                                    "include": "#call-arguments"
-                                }
-                            ]
-                        }
-                    ]
-                },
-                {
-                    "comment": "any other name at the end of a line, which is a call if its ( is on a later line. The grammar can't see the next line when the name is scoped, so the name stays a variable, but the arguments are scoped as a call's. Reserved words are left to their own rules (return (x), this)",
+                    "comment": "any other name at the end of a line, built-ins included, which is a call if its ( is on a later line. The grammar can't see the next line when the name is scoped, so the name stays a variable, but the arguments are scoped as a call's. Reserved words are left to their own rules (return (x), this)",
                     "begin": "\\b(?!(?:if|else|for|in|return|function|class|this|true|false)\\b)((?!\\d)\\w+)\\b(?=[\\t ]*(?://.*)?$)",
                     "beginCaptures": {
                         "1": {
@@ -276,16 +249,9 @@
             "comment": "the inside of a function call's parentheses",
             "patterns": [
                 {
-                    "include": "#lambdas"
-                },
-                {
-                    "comment": "named argument: the name in name = value, but not in name == value",
-                    "match": "(\\b(?!\\d)\\w+)[\\t ]*(?==(?!=))",
-                    "captures": {
-                        "1": {
-                            "name": "variable.parameter.function-call.rascript"
-                        }
-                    }
+                    "comment": "named argument: the name in name = value, but not in name == value or the lambda name => value",
+                    "name": "variable.parameter.function-call.rascript",
+                    "match": "\\b(?!\\d)\\w+(?=[\\t ]*=(?![=>]))"
                 },
                 {
                     "include": "$self"
@@ -307,12 +273,8 @@
                 },
                 {
                     "comment": "lambda with one parameter and no parentheses: v => ...",
-                    "match": "(\\b(?!\\d)\\w+)[\\t ]*(?==>)",
-                    "captures": {
-                        "1": {
-                            "name": "variable.parameter.rascript"
-                        }
-                    }
+                    "name": "variable.parameter.rascript",
+                    "match": "\\b(?!\\d)\\w+(?=[\\t ]*=>)"
                 }
             ]
         },
@@ -347,19 +309,15 @@
             ]
         },
         "class-definitions": {
-            "patterns": [
-                {
-                    "match": "(\\bclass\\b)[\\t ]*(\\b(?!\\d)\\w+)",
-                    "captures": {
-                        "1": {
-                            "name": "keyword.class.rascript"
-                        },
-                        "2": {
-                            "name": "entity.name.class.rascript"
-                        }
-                    }
+            "match": "(\\bclass\\b)[\\t ]*(\\b(?!\\d)\\w+)",
+            "captures": {
+                "1": {
+                    "name": "keyword.class.rascript"
+                },
+                "2": {
+                    "name": "entity.name.class.rascript"
                 }
-            ]
+            }
         },
         "header": {
             "patterns": [
@@ -415,38 +373,18 @@
             ]
         },
         "variable-language-this": {
-            "patterns": [
-                {
-                    "name": "variable.language.this.rascript",
-                    "match": "\\b(this)\\b"
-                }
-            ]
+            "name": "variable.language.this.rascript",
+            "match": "\\bthis\\b"
         },
         "variable-assignment": {
-            "patterns": [
-                {
-                    "comment": "left hand side of variable assignment, but not of an == comparison",
-                    "match": "(\\b(?!\\d)\\w+)[\\t ]*=(?!=)",
-                    "captures": {
-                        "1": {
-                            "name": "variable.other.assignment.rascript"
-                        }
-                    }
-                }
-            ]
+            "comment": "left hand side of variable assignment, but not of an == comparison",
+            "name": "variable.other.assignment.rascript",
+            "match": "\\b(?!\\d)\\w+(?=[\\t ]*=(?!=))"
         },
         "variable-other": {
-            "patterns": [
-                {
-                    "comment": "different variables around the file being used, not assignment",
-                    "match": "(\\b(?!\\d)\\w+)",
-                    "captures": {
-                        "1": {
-                            "name": "variable.other.rascript"
-                        }
-                    }
-                }
-            ]
+            "comment": "different variables around the file being used, not assignment",
+            "name": "variable.other.rascript",
+            "match": "\\b(?!\\d)\\w+"
         }
     },
     
