@@ -67,7 +67,7 @@
         <Token name="Controls" type="NORMAL" regex="\b(if|else|for|in|return)\b" lightStyle="3" darkStyle="4" />
         <Token name="This" type="NORMAL" regex="\b(this)\b" lightStyle="5" darkStyle="6" />
         <Token name="Booleans" type="NORMAL" regex="\b(true|false)\b" lightStyle="7" darkStyle="8" />
-        <Token name="Decimals" type="NORMAL" regex="\b[0-9]+\b" lightStyle="9" darkStyle="10" />
+        <Token name="Decimals" type="NORMAL" regex="\b[0-9]+(?:\.[0-9]+)?\b" lightStyle="9" darkStyle="10" />
         <Token name="Hexadecimals" type="NORMAL" regex="\b(0x[a-fA-F0-9]+)\b" lightStyle="11" darkStyle="12" />
         <Token name="Class" type="NORMAL" regex="(\bclass\b)[\t ]*[a-zA-Z_][\w]*" lightStyle="13" darkStyle="14" />
         <Token name="Class Name" type="NORMAL" regex="\bclass\b[\t ]*([a-zA-Z_][\w]*)" lightStyle="15" darkStyle="16" />
