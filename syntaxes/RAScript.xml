@@ -75,8 +75,8 @@
         <Token name="Function Calls" type="NORMAL" regex="\b(?!(?:if|else|for|return|this|true|false)\b)([a-zA-Z_][\w]*)\s*\(" lightStyle="19" darkStyle="20" />
         <Token name="Function Names" type="NORMAL" regex="\bfunction\b[\t ]*([a-zA-Z_][\w]*)\(" lightStyle="21" darkStyle="22" />
         <Token name="Strings" type="NORMAL" regex='//[^\r\n]*|/\*[\s\S]*?\*/|("(?:\\.|[^"\\])*")' lightStyle="23" darkStyle="24" />
-        <Token name="Line Comments" type="NORMAL" regex="//[^\n\r]*" lightStyle="25" darkStyle="26" />
-        <Token name="Block Comments" type="NORMAL" regex="/\*[\s\S]*?\*/" lightStyle="27" darkStyle="28" />
+        <Token name="Line Comments" type="NORMAL" regex='"(?:\\.|[^"\\])*"|/\*[\s\S]*?\*/|(//[^\r\n]*)' lightStyle="25" darkStyle="26" />
+        <Token name="Block Comments" type="NORMAL" regex='"(?:\\.|[^"\\])*"|//[^\r\n]*|(/\*[\s\S]*?\*/)' lightStyle="27" darkStyle="28" />
         <Token name="Header ID Key" type="NORMAL" regex="(^|\n|\r)//[ \t]*(#ID)[ \t]*=[ \t]*\d+[ \t]*(\n|\r|$)" lightStyle="29" darkStyle="30" />
         <Token name="Header ID Value" type="NORMAL" regex="(^|\n|\r)//[ \t]*#ID[ \t]*=[ \t]*(\d+)[ \t]*(\n|\r|$)" lightStyle="31" darkStyle="36" />
         <Token name="Header MinimumVersion Key" type="NORMAL" regex="(^|\n|\r)//[ \t]*(#MinimumVersion)[ \t]*=[ \t]*\d+(\.\d)?[ \t]*(\n|\r|$)" lightStyle="38" darkStyle="39" />
