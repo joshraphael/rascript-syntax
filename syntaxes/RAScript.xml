@@ -65,10 +65,14 @@
 
             <WordsStyle name="LIGHT-STRING-ESCAPE" styleID="48" fgColor="EE0000" />
             <WordsStyle name="DARK-STRING-ESCAPE" styleID="49" fgColor="D7BA7D" />
+
+            <WordsStyle name="LIGHT-VARIABLE-ASSIGNMENT" styleID="50" fgColor="001080" />
+            <WordsStyle name="DARK-VARIABLE-ASSIGNMENT" styleID="51" fgColor="9CDCFE" />
         </LexerType>
     </LexerStyles>
     <RAScript version="_GRAMMAR_VERSION_">
         <Token name="Variables" type="NORMAL" regex="\b(?!\d)(\w+)" lightStyle="1" darkStyle="2" />
+        <Token name="Variable Assignments" type="NORMAL" regex="\b(?!\d)(\w+)[\t ]*=(?![=>])" lightStyle="50" darkStyle="51" />
         <Token name="Controls" type="NORMAL" regex="\b(if|else|for|return)\b" lightStyle="3" darkStyle="4" />
         <Token name="For Loop" type="NORMAL" regex="\b(for)[\t ]+[a-zA-Z_][\w]*[\t ]+(in)\b" lightStyle="3" darkStyle="4" />
         <Token name="This" type="NORMAL" regex="\b(this)\b" lightStyle="5" darkStyle="6" />
