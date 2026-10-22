@@ -50,22 +50,21 @@
             <WordsStyle name="LIGHT-HEADER-ID-KEY" styleID="29" fgColor="0F4A85" />
             <WordsStyle name="DARK-HEADER-ID-KEY" styleID="30" fgColor="569CD6" />
 
-            <WordsStyle name="LIGHT-HEADER-ID-VALUE" styleID="31" fgColor="096D48" />
-            <!-- styleIDs 32, 33, 34, 35 are reserved, do not use -->
-            <WordsStyle name="DARK-HEADER-ID-VALUE" styleID="36" fgColor="B5CEA8" />
+            <!-- styleIDs 32-39 are reserved by Scintilla, do not use -->
+            <WordsStyle name="LIGHT-HEADER-ID-VALUE" styleID="40" fgColor="096D48" />
+            <WordsStyle name="DARK-HEADER-ID-VALUE" styleID="41" fgColor="B5CEA8" />
 
-            <!-- styleIDs 37 are reserved, do not use -->
-            <WordsStyle name="LIGHT-HEADER-MINIMUMVERSION-KEY" styleID="38" fgColor="0F4A85" />
-            <WordsStyle name="DARK-HEADER-MINIMUMVERSION-KEY" styleID="39" fgColor="569CD6" />
+            <WordsStyle name="LIGHT-HEADER-MINIMUMVERSION-KEY" styleID="42" fgColor="0F4A85" />
+            <WordsStyle name="DARK-HEADER-MINIMUMVERSION-KEY" styleID="43" fgColor="569CD6" />
 
-            <WordsStyle name="LIGHT-HEADER-MINIMUMVERSION-VALUE" styleID="40" fgColor="096D48" />
-            <WordsStyle name="DARK-HEADER-MINIMUMVERSION-VALUE" styleID="41" fgColor="B5CEA8" />
+            <WordsStyle name="LIGHT-HEADER-MINIMUMVERSION-VALUE" styleID="44" fgColor="096D48" />
+            <WordsStyle name="DARK-HEADER-MINIMUMVERSION-VALUE" styleID="45" fgColor="B5CEA8" />
 
-            <WordsStyle name="LIGHT-STRING-PLACEHOLDER" styleID="42" fgColor="0F4A85" />
-            <WordsStyle name="DARK-STRING-PLACEHOLDER" styleID="43" fgColor="569CD6" />
+            <WordsStyle name="LIGHT-STRING-PLACEHOLDER" styleID="46" fgColor="0F4A85" />
+            <WordsStyle name="DARK-STRING-PLACEHOLDER" styleID="47" fgColor="569CD6" />
 
-            <WordsStyle name="LIGHT-STRING-ESCAPE" styleID="44" fgColor="EE0000" />
-            <WordsStyle name="DARK-STRING-ESCAPE" styleID="45" fgColor="D7BA7D" />
+            <WordsStyle name="LIGHT-STRING-ESCAPE" styleID="48" fgColor="EE0000" />
+            <WordsStyle name="DARK-STRING-ESCAPE" styleID="49" fgColor="D7BA7D" />
         </LexerType>
     </LexerStyles>
     <RAScript version="_GRAMMAR_VERSION_">
@@ -82,14 +81,14 @@
         <Token name="Function Calls" type="NORMAL" regex="\b(?!(?:if|else|for|return|this|true|false)\b)([a-zA-Z_][\w]*)[\t ]*\(" lightStyle="19" darkStyle="20" />
         <Token name="Function Names" type="NORMAL" regex="\bfunction\b[\t ]*([a-zA-Z_][\w]*)[\t ]*\(" lightStyle="21" darkStyle="22" />
         <Token name="Strings" type="NORMAL" regex='//[^\r\n]*|/\*[\s\S]*?(?:\*/|(?![\s\S]))|("(?:\\.|[^"\\])*")' lightStyle="23" darkStyle="24" />
-        <Token name="String Placeholder Braces" type="NORMAL" regex="\\.|(\{)[0-9]+(\})" lightStyle="42" darkStyle="43" />
+        <Token name="String Placeholder Braces" type="NORMAL" regex="\\.|(\{)[0-9]+(\})" lightStyle="46" darkStyle="47" />
         <Token name="String Placeholder Index" type="NORMAL" regex="\\.|\{([0-9]+)\}" lightStyle="1" darkStyle="2" />
-        <Token name="String Escapes" type="NORMAL" regex="\\u[0-9a-fA-F]{4}|\\." lightStyle="44" darkStyle="45" />
+        <Token name="String Escapes" type="NORMAL" regex="\\u[0-9a-fA-F]{4}|\\." lightStyle="48" darkStyle="49" />
         <Token name="Line Comments" type="NORMAL" regex='"(?:\\.|[^"\\])*"|/\*[\s\S]*?(?:\*/|(?![\s\S]))|(//[^\r\n]*)' lightStyle="25" darkStyle="26" />
         <Token name="Block Comments" type="NORMAL" regex='"(?:\\.|[^"\\])*"|//[^\r\n]*|(/\*[\s\S]*?(?:\*/|(?![\s\S])))' lightStyle="27" darkStyle="28" />
         <Token name="Header ID Key" type="NORMAL" regex="(^|\n|\r)//[ \t]*(#ID)[ \t]*=[ \t]*\d+[ \t]*(\n|\r|$)" lightStyle="29" darkStyle="30" />
-        <Token name="Header ID Value" type="NORMAL" regex="(^|\n|\r)//[ \t]*#ID[ \t]*=[ \t]*(\d+)[ \t]*(\n|\r|$)" lightStyle="31" darkStyle="36" />
-        <Token name="Header MinimumVersion Key" type="NORMAL" regex="(?:^|\n|\r)//[ \t]*(#MinimumVersion)[ \t]*=[ \t]*(?:(?:0\.7[3-9]|1\.[0-4])(?:\.0){0,2}|(?:1\.3\.1|1\.4\.[12])(?:\.0)?)[ \t]*(?:\n|\r|$)" lightStyle="38" darkStyle="39" />
-        <Token name="Header MinimumVersion Value" type="NORMAL" regex="(?:^|\n|\r)//[ \t]*#MinimumVersion[ \t]*=[ \t]*((?:0\.7[3-9]|1\.[0-4])(?:\.0){0,2}|(?:1\.3\.1|1\.4\.[12])(?:\.0)?)[ \t]*(?:\n|\r|$)" lightStyle="40" darkStyle="41" />
+        <Token name="Header ID Value" type="NORMAL" regex="(^|\n|\r)//[ \t]*#ID[ \t]*=[ \t]*(\d+)[ \t]*(\n|\r|$)" lightStyle="40" darkStyle="41" />
+        <Token name="Header MinimumVersion Key" type="NORMAL" regex="(?:^|\n|\r)//[ \t]*(#MinimumVersion)[ \t]*=[ \t]*(?:(?:0\.7[3-9]|1\.[0-4])(?:\.0){0,2}|(?:1\.3\.1|1\.4\.[12])(?:\.0)?)[ \t]*(?:\n|\r|$)" lightStyle="42" darkStyle="43" />
+        <Token name="Header MinimumVersion Value" type="NORMAL" regex="(?:^|\n|\r)//[ \t]*#MinimumVersion[ \t]*=[ \t]*((?:0\.7[3-9]|1\.[0-4])(?:\.0){0,2}|(?:1\.3\.1|1\.4\.[12])(?:\.0)?)[ \t]*(?:\n|\r|$)" lightStyle="44" darkStyle="45" />
     </RAScript>
 </NotepadPlus>
