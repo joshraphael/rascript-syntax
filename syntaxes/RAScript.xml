@@ -71,6 +71,33 @@
         </LexerType>
     </LexerStyles>
     <RAScript version="_GRAMMAR_VERSION_">
+        <Include ref="#statements" />
+        <Repository>
+            <Rule name="statements">
+                <!-- header before comments, since both start with // -->
+                <Include ref="#header" />
+                <Include ref="#comments" />
+            </Rule>
+            <Rule name="header">
+                <Rule match="^//[\t ]*(#ID)[\t ]*=[\t ]*(\d+)$" lightStyle="25" darkStyle="26">
+                    <Capture index="1" lightStyle="29" darkStyle="30" />
+                    <Capture index="2" lightStyle="40" darkStyle="41" />
+                </Rule>
+                <!-- only the RATools release versions listed in https://github.com/Jamiras/RATools/blob/master/Source/Data/Version.cs (0.73-0.79, 1.0-1.4, 1.3.1, 1.4.1, 1.4.2), optionally padded with .0 up to the 4 parts RATools parses (1.0.0.0 is 1.0). -->
+                <Rule match="^//[\t ]*(#MinimumVersion)[\t ]*=[\t ]*((?:0\.7[3-9]|1\.[0-4])(?:\.0){0,2}|(?:1\.3\.1|1\.4\.[12])(?:\.0)?)$" lightStyle="25" darkStyle="26">
+                    <Capture index="1" lightStyle="42" darkStyle="43" />
+                    <Capture index="2" lightStyle="44" darkStyle="45" />
+                </Rule>
+            </Rule>
+            <Rule name="comments">
+                <Rule begin="/\*" end="\*/" lightStyle="27" darkStyle="28">
+                    <Capture index="0" lightStyle="27" darkStyle="28" />
+                </Rule>
+                <Rule begin="//" end="$" lightStyle="25" darkStyle="26">
+                    <BeginCapture index="0" lightStyle="25" darkStyle="26" />
+                </Rule>
+            </Rule>
+        </Repository>
         <Token name="Variables" type="NORMAL" regex="\b(?!\d)(\w+)" lightStyle="1" darkStyle="2" />
         <Token name="Variable Assignments" type="NORMAL" regex="\b(?!\d)(\w+)[\t ]*=(?![=>])" lightStyle="50" darkStyle="51" />
         <Token name="Controls" type="NORMAL" regex="\b(if|else|for|return)\b" lightStyle="3" darkStyle="4" />
@@ -88,11 +115,5 @@
         <Token name="String Placeholder Braces" type="NORMAL" regex="\\.|(\{)[0-9]+(\})" lightStyle="46" darkStyle="47" />
         <Token name="String Placeholder Index" type="NORMAL" regex="\\.|\{([0-9]+)\}" lightStyle="1" darkStyle="2" />
         <Token name="String Escapes" type="NORMAL" regex="\\u[0-9a-fA-F]{4}|\\." lightStyle="48" darkStyle="49" />
-        <Token name="Line Comments" type="NORMAL" regex='"(?:\\.|[^"\\])*"|/\*[\s\S]*?(?:\*/|(?![\s\S]))|(//[^\r\n]*)' lightStyle="25" darkStyle="26" />
-        <Token name="Block Comments" type="NORMAL" regex='"(?:\\.|[^"\\])*"|//[^\r\n]*|(/\*[\s\S]*?(?:\*/|(?![\s\S])))' lightStyle="27" darkStyle="28" />
-        <Token name="Header ID Key" type="NORMAL" regex="(^|\n|\r)//[ \t]*(#ID)[ \t]*=[ \t]*\d+[ \t]*(\n|\r|$)" lightStyle="29" darkStyle="30" />
-        <Token name="Header ID Value" type="NORMAL" regex="(^|\n|\r)//[ \t]*#ID[ \t]*=[ \t]*(\d+)[ \t]*(\n|\r|$)" lightStyle="40" darkStyle="41" />
-        <Token name="Header MinimumVersion Key" type="NORMAL" regex="(?:^|\n|\r)//[ \t]*(#MinimumVersion)[ \t]*=[ \t]*(?:(?:0\.7[3-9]|1\.[0-4])(?:\.0){0,2}|(?:1\.3\.1|1\.4\.[12])(?:\.0)?)[ \t]*(?:\n|\r|$)" lightStyle="42" darkStyle="43" />
-        <Token name="Header MinimumVersion Value" type="NORMAL" regex="(?:^|\n|\r)//[ \t]*#MinimumVersion[ \t]*=[ \t]*((?:0\.7[3-9]|1\.[0-4])(?:\.0){0,2}|(?:1\.3\.1|1\.4\.[12])(?:\.0)?)[ \t]*(?:\n|\r|$)" lightStyle="44" darkStyle="45" />
     </RAScript>
 </NotepadPlus>
