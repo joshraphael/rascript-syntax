@@ -93,6 +93,7 @@
                 <Include ref="#numbers" />
                 <Include ref="#function-names" />
                 <Include ref="#class-definitions" />
+                <Include ref="#lambdas" />
                 <Include ref="#variable-language-this" />
             </Rule>
             <Rule name="header">
@@ -176,6 +177,14 @@
                 <!-- named argument: the name in name = value, but not in name == value or the lambda name => value -->
                 <Rule match="\b(?!\d)\w+(?=[\t ]*=(?![=>]))" lightStyle="56" darkStyle="57" />
                 <Include ref="$self" />
+            </Rule>
+            <Rule name="lambdas">
+                <!-- lambda with parameters in parentheses: (a, b) => ... or (a, b) { ... }. The ( and the names up to ) => or ) { must be on one line -->
+                <Rule begin="\((?=(?:\w|[\t ,])*\)[\t ]*(?:=>|\{))" end="\)">
+                    <Rule match="\b(?!\d)\w+" lightStyle="52" darkStyle="53" />
+                </Rule>
+                <!-- lambda with one parameter and no parentheses: v => ... -->
+                <Rule match="\b(?!\d)\w+(?=[\t ]*=>)" lightStyle="52" darkStyle="53" />
             </Rule>
             <Rule name="booleans" match="\b(?:true|false)\b" lightStyle="7" darkStyle="8" />
             <Rule name="numbers">
