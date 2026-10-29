@@ -68,6 +68,9 @@
 
             <WordsStyle name="LIGHT-VARIABLE-ASSIGNMENT" styleID="50" fgColor="001080" />
             <WordsStyle name="DARK-VARIABLE-ASSIGNMENT" styleID="51" fgColor="9CDCFE" />
+
+            <WordsStyle name="LIGHT-PARAMETERS" styleID="52" fgColor="001080" />
+            <WordsStyle name="DARK-PARAMETERS" styleID="53" fgColor="9CDCFE" />
         </LexerType>
     </LexerStyles>
     <RAScript version="_GRAMMAR_VERSION_">
@@ -78,6 +81,7 @@
                 <Include ref="#header" />
                 <Include ref="#comments" />
                 <Include ref="#controls" />
+                <Include ref="#function-definitions" />
                 <Include ref="#booleans" />
                 <Include ref="#strings" />
                 <Include ref="#numbers" />
@@ -128,6 +132,18 @@
                 </Rule>
                 <Rule match="\b(if|else|for|return)\b" lightStyle="3" darkStyle="4" />
             </Rule>
+            <!-- a function definition from the function keyword to the ) closing its parameter list, so parameters can span lines. The keyword, name and ( must be on the same line -->
+            <Rule name="function-definitions" begin="(\bfunction\b)\s*(\w+)\s*\(" end="\)">
+                <BeginCapture index="1" lightStyle="17" darkStyle="18" />
+                <BeginCapture index="2" lightStyle="21" darkStyle="22" />
+                <Include ref="#comments" />
+                <!-- default value: everything after = up to the next , or ) is highlighted as usual. Parentheses, blocks and brackets in the value consume their own , and ) -->
+                <Rule begin="=(?!=)" end="(?=[,)])">
+                    <Include ref="$self" />
+                </Rule>
+                <!-- parameter name -->
+                <Rule match="\b(?!\d)\w+" lightStyle="52" darkStyle="53" />
+            </Rule>
             <Rule name="booleans" match="\b(?:true|false)\b" lightStyle="7" darkStyle="8" />
             <Rule name="numbers">
                 <!-- whole numbers and decimals like 19.25, scoped as one number including the dot -->
@@ -142,8 +158,6 @@
         </Repository>
         <Token name="Variables" type="NORMAL" regex="\b(?!\d)(\w+)" lightStyle="1" darkStyle="2" />
         <Token name="Variable Assignments" type="NORMAL" regex="\b(?!\d)(\w+)[\t ]*=(?![=>])" lightStyle="50" darkStyle="51" />
-        <Token name="Function" type="NORMAL" regex="(\bfunction\b)[\t ]*[a-zA-Z_][\w]*[\t ]*\(" lightStyle="17" darkStyle="18" />
         <Token name="Function Calls" type="NORMAL" regex="\b(?!(?:if|else|for|return|this|true|false)\b)([a-zA-Z_][\w]*)[\t ]*\(" lightStyle="19" darkStyle="20" />
-        <Token name="Function Names" type="NORMAL" regex="\bfunction\b[\t ]*([a-zA-Z_][\w]*)[\t ]*\(" lightStyle="21" darkStyle="22" />
     </RAScript>
 </NotepadPlus>
