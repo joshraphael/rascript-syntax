@@ -77,6 +77,7 @@
                 <!-- header before comments, since both start with // -->
                 <Include ref="#header" />
                 <Include ref="#comments" />
+                <Include ref="#controls" />
                 <Include ref="#booleans" />
                 <Include ref="#strings" />
                 <Include ref="#numbers" />
@@ -113,6 +114,20 @@
                     </Rule>
                 </Rule>
             </Rule>
+            <Rule name="controls">
+                <!-- if with its condition in parentheses: the condition is its own region so if (x) { isn't read as the lambda (x) { ... } -->
+                <Rule begin="\b(if)[\t ]*\(" end="\)">
+                    <BeginCapture index="1" lightStyle="3" darkStyle="4" />
+                    <Include ref="$self" />
+                </Rule>
+                <!-- for loop header: in is only a keyword after for and the loop variable, elsewhere it is a normal name (in = 1, function in(...)) -->
+                <Rule match="\b(for)[\t ]+(\b(?!\d)\w+)[\t ]+(in)\b">
+                    <Capture index="1" lightStyle="3" darkStyle="4" />
+                    <Capture index="2" lightStyle="1" darkStyle="2" />
+                    <Capture index="3" lightStyle="3" darkStyle="4" />
+                </Rule>
+                <Rule match="\b(if|else|for|return)\b" lightStyle="3" darkStyle="4" />
+            </Rule>
             <Rule name="booleans" match="\b(?:true|false)\b" lightStyle="7" darkStyle="8" />
             <Rule name="numbers">
                 <!-- whole numbers and decimals like 19.25, scoped as one number including the dot -->
@@ -127,8 +142,6 @@
         </Repository>
         <Token name="Variables" type="NORMAL" regex="\b(?!\d)(\w+)" lightStyle="1" darkStyle="2" />
         <Token name="Variable Assignments" type="NORMAL" regex="\b(?!\d)(\w+)[\t ]*=(?![=>])" lightStyle="50" darkStyle="51" />
-        <Token name="Controls" type="NORMAL" regex="\b(if|else|for|return)\b" lightStyle="3" darkStyle="4" />
-        <Token name="For Loop" type="NORMAL" regex="\b(for)[\t ]+[a-zA-Z_][\w]*[\t ]+(in)\b" lightStyle="3" darkStyle="4" />
         <Token name="Function" type="NORMAL" regex="(\bfunction\b)[\t ]*[a-zA-Z_][\w]*[\t ]*\(" lightStyle="17" darkStyle="18" />
         <Token name="Function Calls" type="NORMAL" regex="\b(?!(?:if|else|for|return|this|true|false)\b)([a-zA-Z_][\w]*)[\t ]*\(" lightStyle="19" darkStyle="20" />
         <Token name="Function Names" type="NORMAL" regex="\bfunction\b[\t ]*([a-zA-Z_][\w]*)[\t ]*\(" lightStyle="21" darkStyle="22" />
