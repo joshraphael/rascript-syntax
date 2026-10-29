@@ -20,8 +20,8 @@
             <WordsStyle name="LIGHT-DECIMALS" styleID="9" fgColor="096D48" />
             <WordsStyle name="DARK-DECIMALS" styleID="10" fgColor="B5CEA8" />
 
-            <WordsStyle name="LIGHT-HAXADECIMALS" styleID="11" fgColor="096D48" />
-            <WordsStyle name="DARK-HAXADECIMALS" styleID="12" fgColor="B5CEA8" />
+            <WordsStyle name="LIGHT-HEXADECIMALS" styleID="11" fgColor="096D48" />
+            <WordsStyle name="DARK-HEXADECIMALS" styleID="12" fgColor="B5CEA8" />
 
             <WordsStyle name="LIGHT-CLASS" styleID="13" fgColor="0F4A85" />
             <WordsStyle name="DARK-CLASS" styleID="14" fgColor="569CD6" />
@@ -77,7 +77,11 @@
                 <!-- header before comments, since both start with // -->
                 <Include ref="#header" />
                 <Include ref="#comments" />
+                <Include ref="#booleans" />
                 <Include ref="#strings" />
+                <Include ref="#numbers" />
+                <Include ref="#class-definitions" />
+                <Include ref="#variable-language-this" />
             </Rule>
             <Rule name="header">
                 <Rule match="^//[\t ]*(#ID)[\t ]*=[\t ]*(\d+)$" lightStyle="25" darkStyle="26">
@@ -109,17 +113,22 @@
                     </Rule>
                 </Rule>
             </Rule>
+            <Rule name="booleans" match="\b(?:true|false)\b" lightStyle="7" darkStyle="8" />
+            <Rule name="numbers">
+                <!-- whole numbers and decimals like 19.25, scoped as one number including the dot -->
+                <Rule match="\b[0-9]+(\.[0-9]+)?\b" lightStyle="9" darkStyle="10" />
+                <Rule match="\b0x[0-9a-fA-F]+\b" lightStyle="11" darkStyle="12" />
+            </Rule>
+            <Rule name="class-definitions" match="(\bclass\b)[\t ]*(\b(?!\d)\w+)">
+                <Capture index="1" lightStyle="13" darkStyle="14" />
+                <Capture index="2" lightStyle="15" darkStyle="16" />
+            </Rule>
+            <Rule name="variable-language-this" match="\bthis\b" lightStyle="5" darkStyle="6" />
         </Repository>
         <Token name="Variables" type="NORMAL" regex="\b(?!\d)(\w+)" lightStyle="1" darkStyle="2" />
         <Token name="Variable Assignments" type="NORMAL" regex="\b(?!\d)(\w+)[\t ]*=(?![=>])" lightStyle="50" darkStyle="51" />
         <Token name="Controls" type="NORMAL" regex="\b(if|else|for|return)\b" lightStyle="3" darkStyle="4" />
         <Token name="For Loop" type="NORMAL" regex="\b(for)[\t ]+[a-zA-Z_][\w]*[\t ]+(in)\b" lightStyle="3" darkStyle="4" />
-        <Token name="This" type="NORMAL" regex="\b(this)\b" lightStyle="5" darkStyle="6" />
-        <Token name="Booleans" type="NORMAL" regex="\b(true|false)\b" lightStyle="7" darkStyle="8" />
-        <Token name="Decimals" type="NORMAL" regex="\b[0-9]+(?:\.[0-9]+)?\b" lightStyle="9" darkStyle="10" />
-        <Token name="Hexadecimals" type="NORMAL" regex="\b(0x[a-fA-F0-9]+)\b" lightStyle="11" darkStyle="12" />
-        <Token name="Class" type="NORMAL" regex="(\bclass\b)[\t ]*[a-zA-Z_][\w]*" lightStyle="13" darkStyle="14" />
-        <Token name="Class Name" type="NORMAL" regex="\bclass\b[\t ]*([a-zA-Z_][\w]*)" lightStyle="15" darkStyle="16" />
         <Token name="Function" type="NORMAL" regex="(\bfunction\b)[\t ]*[a-zA-Z_][\w]*[\t ]*\(" lightStyle="17" darkStyle="18" />
         <Token name="Function Calls" type="NORMAL" regex="\b(?!(?:if|else|for|return|this|true|false)\b)([a-zA-Z_][\w]*)[\t ]*\(" lightStyle="19" darkStyle="20" />
         <Token name="Function Names" type="NORMAL" regex="\bfunction\b[\t ]*([a-zA-Z_][\w]*)[\t ]*\(" lightStyle="21" darkStyle="22" />
