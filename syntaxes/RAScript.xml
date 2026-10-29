@@ -94,6 +94,9 @@
                 <Include ref="#function-names" />
                 <Include ref="#class-definitions" />
                 <Include ref="#lambdas" />
+                <Include ref="#parentheses" />
+                <Include ref="#blocks" />
+                <Include ref="#brackets" />
                 <Include ref="#variable-language-this" />
             </Rule>
             <Rule name="header">
@@ -185,6 +188,18 @@
                 </Rule>
                 <!-- lambda with one parameter and no parentheses: v => ... -->
                 <Rule match="\b(?!\d)\w+(?=[\t ]*=>)" lightStyle="52" darkStyle="53" />
+            </Rule>
+            <!-- matched ( ) pairs, so a region containing them can't end on their ) or on a , inside them. The contents are highlighted as usual -->
+            <Rule name="parentheses" begin="\(" end="\)">
+                <Include ref="$self" />
+            </Rule>
+            <!-- matched { } pairs, so a region containing them can't end on a ) or , inside them. The contents are highlighted as usual -->
+            <Rule name="blocks" begin="\{" end="\}">
+                <Include ref="$self" />
+            </Rule>
+            <!-- matched [ ] pairs, so a region containing them can't end on a ) or , inside them. The contents are highlighted as usual -->
+            <Rule name="brackets" begin="\[" end="\]">
+                <Include ref="$self" />
             </Rule>
             <Rule name="booleans" match="\b(?:true|false)\b" lightStyle="7" darkStyle="8" />
             <Rule name="numbers">
