@@ -98,6 +98,8 @@
                 <Include ref="#blocks" />
                 <Include ref="#brackets" />
                 <Include ref="#variable-language-this" />
+                <Include ref="#variable-assignment" />
+                <Include ref="#variable-other" />
             </Rule>
             <Rule name="header">
                 <Rule match="^//[\t ]*(#ID)[\t ]*=[\t ]*(\d+)$" lightStyle="25" darkStyle="26">
@@ -212,8 +214,10 @@
                 <Capture index="2" lightStyle="15" darkStyle="16" />
             </Rule>
             <Rule name="variable-language-this" match="\bthis\b" lightStyle="5" darkStyle="6" />
+            <!-- left hand side of variable assignment, but not of an == comparison -->
+            <Rule name="variable-assignment" match="\b(?!\d)\w+(?=[\t ]*=(?!=))" lightStyle="50" darkStyle="51" />
+            <!-- different variables around the file being used, not assignment -->
+            <Rule name="variable-other" match="\b(?!\d)\w+" lightStyle="1" darkStyle="2" />
         </Repository>
-        <Token name="Variables" type="NORMAL" regex="\b(?!\d)(\w+)" lightStyle="1" darkStyle="2" />
-        <Token name="Variable Assignments" type="NORMAL" regex="\b(?!\d)(\w+)[\t ]*=(?![=>])" lightStyle="50" darkStyle="51" />
     </RAScript>
 </NotepadPlus>
