@@ -41,17 +41,34 @@ def check_tmlanguage(json_path, plist_path):
 
 
 def check_notepad(xml_path):
-    tokens = ET.parse(xml_path).getroot().findall("RAScript/Token")
-    if not tokens:
-        raise ValueError(f"{xml_path} has no RAScript tokens")
-    for token in tokens:
-        name, regex = token.get("name"), token.get("regex")
-        if token.get("type") == "NORMAL" and regex is None:
-            raise ValueError(f"{xml_path}: token {name!r} has no regex")
-        try:
-            re.compile(regex or "")
-        except re.error as e:
-            raise ValueError(f"{xml_path}: token {name!r}: {e}") from None
+    root = ET.parse(xml_path).getroot()
+    grammar = root.find("RAScript")
+    if grammar is None:
+        raise ValueError(f"{xml_path} has no RAScript element")
+    styles = {int(s.get("styleID")) for s in root.iter("WordsStyle")}
+    repository = grammar.find("Repository")
+    names = {r.get("name") for r in repository.findall("Rule")} if repository is not None else set()
+    rules = list(grammar.iter("Rule"))
+    if not rules:
+        raise ValueError(f"{xml_path} has no RAScript rules")
+    for rule in rules:
+        where = f"rule {rule.get('name') or rule.get('match') or rule.get('begin')!r}"
+        kinds = [a for a in ("match", "begin", "end") if rule.get(a) is not None]
+        if kinds not in ([], ["match"], ["begin", "end"]):
+            raise ValueError(f"{xml_path}: {where} needs match, begin and end, or neither, not {kinds}")
+        for attr in kinds:
+            try:
+                re.compile(rule.get(attr))
+            except re.error as e:
+                raise ValueError(f"{xml_path}: {where} {attr}: {e}") from None
+        for e in [rule] + rule.findall("Capture") + rule.findall("BeginCapture") + rule.findall("EndCapture"):
+            for mode in ("lightStyle", "darkStyle"):
+                if e.get(mode) is not None and int(e.get(mode)) not in styles:
+                    raise ValueError(f"{xml_path}: {where} {mode} {e.get(mode)} has no WordsStyle")
+    for include in grammar.iter("Include"):
+        ref = include.get("ref")
+        if ref != "$self" and (not ref.startswith("#") or ref[1:] not in names):
+            raise ValueError(f"{xml_path}: include {ref!r} names no repository rule")
 
 
 def main():

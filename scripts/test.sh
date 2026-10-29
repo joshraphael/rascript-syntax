@@ -13,7 +13,7 @@ vim -N -u NONE -i NONE -es \
 echo "checking gen/rascript.tmLanguage.json and gen/rascript.tmLanguage"
 python3 scripts/validate.py tmlanguage gen/rascript.tmLanguage.json gen/rascript.tmLanguage
 
-# Test the Notepad++ XML parses and its token regexes compile
+# Test the Notepad++ XML parses, its rule regexes compile, and its styles and includes exist
 echo "checking gen/RAScript.xml"
 python3 scripts/validate.py notepad gen/RAScript.xml
 
