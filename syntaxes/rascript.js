@@ -85,6 +85,11 @@ function ImportantWordRegex() {
 }
 
 export default function(hljs) {
+    // the top-level modes, like the TextMate grammar's statements, so a mode can
+    // include them the way a TextMate rule includes $self. Filled in at the end,
+    // once every mode is defined
+    const STATEMENTS = [];
+
     // The modes below mirror the TextMate grammar's rules. Their regexes are the
     // TextMate ones in JavaScript form: \w is [\p{L}\p{M}\p{N}\p{Pc}] and \b a
     // lookaround on it (JavaScript's are ASCII only), and \h is [0-9a-fA-F].
@@ -144,6 +149,27 @@ export default function(hljs) {
             relevance: 0
         }
     ];
+    const CONTROLS = [
+        // if with its condition in parentheses: the condition is its own region so if (x) { isn't read as the lambda (x) { ... }
+        {
+            begin: [/(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))if/, /[\t ]*\(/],
+            beginScope: { 1: 'keyword' },
+            end: /\)/,
+            contains: STATEMENTS,
+            relevance: 0
+        },
+        // for loop header: in is only a keyword after for and the loop variable, elsewhere it is a normal name (in = 1, function in(...))
+        {
+            scope: { 1: 'keyword', 3: 'variable', 5: 'keyword' },
+            match: [/(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))for/, /[\t ]+/, /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(?!\d)[\p{L}\p{M}\p{N}\p{Pc}]+/, /[\t ]+/, /in(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))/],
+            relevance: 0
+        },
+        {
+            scope: 'keyword',
+            match: /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(if|else|for|return)(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))/,
+            relevance: 0
+        }
+    ];
     const BOOLEANS = [
         {
             scope: 'literal',
@@ -179,12 +205,11 @@ export default function(hljs) {
         }
     ];
 
-    // the top-level modes, like the TextMate grammar's statements, so a mode can
-    // include them the way a TextMate rule includes $self
-    const STATEMENTS = [
+    STATEMENTS.push(
         // header before comments, since both start with //
         ...HEADER,
         ...COMMENTS,
+        ...CONTROLS,
         ...BOOLEANS,
         ...STRINGS,
         ...NUMBERS,
@@ -200,11 +225,6 @@ export default function(hljs) {
                 1: "title.function.invoke"
             },
             relevance: 10
-        },
-        {
-            scope: 'keyword',
-            begin: /\b(else|for|if|in|return)\b/,
-            relevance: 0
         },
         {
             scope: 'operator',
@@ -244,7 +264,7 @@ export default function(hljs) {
             begin: /[a-zA-Z_][\w]*/,
             relevance: 0
         }
-    ];
+    );
     return {
         case_insensitive: false,
         unicodeRegex: true,
