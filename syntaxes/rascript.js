@@ -85,7 +85,11 @@ function ImportantWordRegex() {
 }
 
 export default function(hljs) {
-    // A TextMate capture is a part of a multi-part match here, with its own scope
+    // The modes below mirror the TextMate grammar's rules. Their regexes are the
+    // TextMate ones in JavaScript form: \w is [\p{L}\p{M}\p{N}\p{Pc}] and \b a
+    // lookaround on it (JavaScript's are ASCII only), and \h is [0-9a-fA-F].
+    // highlight.js compiles them with the m and u flags (unicodeRegex). A TextMate
+    // capture is a part of a multi-part match here, with its own scope
     const HEADER = [
         {
             scope: { 1: 'comment', 2: 'keyword', 3: 'comment', 4: 'number' },
@@ -113,31 +117,67 @@ export default function(hljs) {
             relevance: 0
         }
     ];
-    const STRINGS = {
-        scope: 'string',
-        begin: /"/,
-        end: /"/,
-        contains: [
-            // unicode escape: \u and exactly four hex digits, one character (\u00e9 is é)
-            {
-                scope: 'char.escape',
-                match: /\\u[0-9a-fA-F]{4}/,
-                relevance: 0
-            },
-            // any other escape: RATools reads \t \n \r, and drops the backslash before any other character
-            {
-                scope: 'char.escape',
-                match: /\\./,
-                relevance: 0
-            },
-            {
-                scope: { 1: 'template-variable', 2: 'variable', 3: 'template-variable' },
-                match: [/\{/, /[0-9]+/, /\}/],
-                relevance: 0
-            }
-        ],
-        relevance: 0
-    };
+    const STRINGS = [
+        {
+            scope: 'string',
+            begin: /"/,
+            end: /"/,
+            contains: [
+                // unicode escape: \u and exactly four hex digits, one character (\u00e9 is é)
+                {
+                    scope: 'char.escape',
+                    match: /\\u[0-9a-fA-F]{4}/,
+                    relevance: 0
+                },
+                // any other escape: RATools reads \t \n \r, and drops the backslash before any other character
+                {
+                    scope: 'char.escape',
+                    match: /\\./,
+                    relevance: 0
+                },
+                {
+                    scope: { 1: 'template-variable', 2: 'variable', 3: 'template-variable' },
+                    match: [/\{/, /[0-9]+/, /\}/],
+                    relevance: 0
+                }
+            ],
+            relevance: 0
+        }
+    ];
+    const BOOLEANS = [
+        {
+            scope: 'literal',
+            match: /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(?:true|false)(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))/,
+            relevance: 0
+        }
+    ];
+    const NUMBERS = [
+        // whole numbers and decimals like 19.25, scoped as one number including the dot
+        {
+            scope: 'number',
+            match: /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))[0-9]+(\.[0-9]+)?(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))/,
+            relevance: 0
+        },
+        {
+            scope: 'number',
+            match: /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))0x[0-9a-fA-F]+(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))/,
+            relevance: 0
+        }
+    ];
+    const CLASS_DEFINITIONS = [
+        {
+            scope: { 1: 'keyword', 3: 'title.class' },
+            match: [/(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))class(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))/, /[\t ]*/, /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(?!\d)[\p{L}\p{M}\p{N}\p{Pc}]+/],
+            relevance: 0
+        }
+    ];
+    const VARIABLE_LANGUAGE_THIS = [
+        {
+            scope: 'variable.language',
+            match: /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))this(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))/,
+            relevance: 0
+        }
+    ];
 
     // the top-level modes, like the TextMate grammar's statements, so a mode can
     // include them the way a TextMate rule includes $self
@@ -145,7 +185,11 @@ export default function(hljs) {
         // header before comments, since both start with //
         ...HEADER,
         ...COMMENTS,
-        STRINGS,
+        ...BOOLEANS,
+        ...STRINGS,
+        ...NUMBERS,
+        ...CLASS_DEFINITIONS,
+        ...VARIABLE_LANGUAGE_THIS,
         // This block helps highlight.js auto detect RAScript syntax
         {
             begin: [
@@ -157,20 +201,9 @@ export default function(hljs) {
             },
             relevance: 10
         },
-        hljs.C_NUMBER_MODE,
-        {
-            scope: 'variable.language',
-            begin: /\b(this)\b/,
-            relevance: 0
-        },
         {
             scope: 'keyword',
             begin: /\b(else|for|if|in|return)\b/,
-            relevance: 0
-        },
-        {
-            scope: 'literal',
-            begin: /\b(true|false)\b/,
             relevance: 0
         },
         {
@@ -193,18 +226,6 @@ export default function(hljs) {
             beginScope: {
                 1: "keyword",
                 3: "title.function"
-            },
-            relevance: 0
-        },
-        {
-            begin: [
-                /\b(class)\b/,
-                /[\t ]+/,
-                /[a-zA-Z_][\w]*/
-            ],
-            beginScope: {
-                1: "keyword",
-                3: "title.class"
             },
             relevance: 0
         },
