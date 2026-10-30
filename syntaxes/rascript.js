@@ -113,6 +113,31 @@ export default function(hljs) {
             relevance: 0
         }
     ];
+    const STRINGS = {
+        scope: 'string',
+        begin: /"/,
+        end: /"/,
+        contains: [
+            // unicode escape: \u and exactly four hex digits, one character (\u00e9 is é)
+            {
+                scope: 'char.escape',
+                match: /\\u[0-9a-fA-F]{4}/,
+                relevance: 0
+            },
+            // any other escape: RATools reads \t \n \r, and drops the backslash before any other character
+            {
+                scope: 'char.escape',
+                match: /\\./,
+                relevance: 0
+            },
+            {
+                scope: { 1: 'template-variable', 2: 'variable', 3: 'template-variable' },
+                match: [/\{/, /[0-9]+/, /\}/],
+                relevance: 0
+            }
+        ],
+        relevance: 0
+    };
 
     // the top-level modes, like the TextMate grammar's statements, so a mode can
     // include them the way a TextMate rule includes $self
@@ -120,6 +145,7 @@ export default function(hljs) {
         // header before comments, since both start with //
         ...HEADER,
         ...COMMENTS,
+        STRINGS,
         // This block helps highlight.js auto detect RAScript syntax
         {
             begin: [
@@ -131,7 +157,6 @@ export default function(hljs) {
             },
             relevance: 10
         },
-        hljs.QUOTE_STRING_MODE,
         hljs.C_NUMBER_MODE,
         {
             scope: 'variable.language',
