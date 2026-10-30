@@ -170,6 +170,31 @@ export default function(hljs) {
             relevance: 0
         }
     ];
+    // a function definition from the function keyword to the ) closing its parameter list, so parameters can span lines. The keyword, name and ( must be on the same line
+    const FUNCTION_DEFINITIONS = [
+        {
+            begin: [/(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))function(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))/, /[^\S\r\n]*/, /[\p{L}\p{M}\p{N}\p{Pc}]+/, /[^\S\r\n]*\(/],
+            beginScope: { 1: 'keyword', 3: 'title.function' },
+            end: /\)/,
+            contains: [
+                ...COMMENTS,
+                // default value: everything after = up to the next , or ) is highlighted as usual. Parentheses, blocks and brackets in the value consume their own , and )
+                {
+                    begin: /=(?!=)/,
+                    end: /(?=[,)])/,
+                    contains: STATEMENTS,
+                    relevance: 0
+                },
+                // parameter name
+                {
+                    scope: 'params',
+                    match: /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(?!\d)[\p{L}\p{M}\p{N}\p{Pc}]+/,
+                    relevance: 0
+                }
+            ],
+            relevance: 0
+        }
+    ];
     const BOOLEANS = [
         {
             scope: 'literal',
@@ -210,6 +235,7 @@ export default function(hljs) {
         ...HEADER,
         ...COMMENTS,
         ...CONTROLS,
+        ...FUNCTION_DEFINITIONS,
         ...BOOLEANS,
         ...STRINGS,
         ...NUMBERS,
@@ -236,19 +262,6 @@ export default function(hljs) {
             match: /[\+\-\*\/%\^&\^~><!\|]/,
             relevance: 0
         },      
-        {
-            begin: [
-                /\b(function)\b/,
-                /[\t ]+/,
-                /[a-zA-Z_][\w]*/,
-                /\(/
-            ],
-            beginScope: {
-                1: "keyword",
-                3: "title.function"
-            },
-            relevance: 0
-        },
         {
             begin: [
                 /[a-zA-Z_][\w]*/,
