@@ -85,92 +85,96 @@ function ImportantWordRegex() {
 }
 
 export default function(hljs) {
+    // the top-level modes, like the TextMate grammar's statements, so a mode can
+    // include them the way a TextMate rule includes $self
+    const STATEMENTS = [
+        // This block helps highlight.js auto detect RAScript syntax
+        {
+            begin: [
+                new RegExp(ImportantWordRegex()),
+                /\(/
+            ],
+            beginScope: {
+                1: "title.function.invoke"
+            },
+            relevance: 10
+        },
+        hljs.C_LINE_COMMENT_MODE,
+        hljs.QUOTE_STRING_MODE,
+        hljs.C_NUMBER_MODE,
+        hljs.COMMENT(
+            '/\\*',
+            '\\*/',
+        ),
+        {
+            scope: 'variable.language',
+            begin: /\b(this)\b/,
+            relevance: 0
+        },
+        {
+            scope: 'keyword',
+            begin: /\b(else|for|if|in|return)\b/,
+            relevance: 0
+        },
+        {
+            scope: 'literal',
+            begin: /\b(true|false)\b/,
+            relevance: 0
+        },
+        {
+            scope: 'operator',
+            begin: /(\|\||&&|==|!=|>=|<=|=>)/,
+            relevance: 0
+        },
+        {
+            scope: 'operator',
+            match: /[\+\-\*\/%\^&\^~><!\|]/,
+            relevance: 0
+        },      
+        {
+            begin: [
+                /\b(function)\b/,
+                /[\t ]+/,
+                /[a-zA-Z_][\w]*/,
+                /\(/
+            ],
+            beginScope: {
+                1: "keyword",
+                3: "title.function"
+            },
+            relevance: 0
+        },
+        {
+            begin: [
+                /\b(class)\b/,
+                /[\t ]+/,
+                /[a-zA-Z_][\w]*/
+            ],
+            beginScope: {
+                1: "keyword",
+                3: "title.class"
+            },
+            relevance: 0
+        },
+        {
+            begin: [
+                /[a-zA-Z_][\w]*/,
+                /\(/
+            ],
+            beginScope: {
+                1: "title.function.invoke"
+            },
+            relevance: 0
+        },
+        {
+            scope: 'variable',
+            begin: /[a-zA-Z_][\w]*/,
+            relevance: 0
+        }
+    ];
     return {
         case_insensitive: false,
-        contains: [
-            // This block helps highlight.js auto detect RAScript syntax
-            {
-                begin: [
-                    new RegExp(ImportantWordRegex()),
-                    /\(/
-                ],
-                beginScope: {
-                    1: "title.function.invoke"
-                },
-                relevance: 10
-            },
-            hljs.C_LINE_COMMENT_MODE,
-            hljs.QUOTE_STRING_MODE,
-            hljs.C_NUMBER_MODE,
-            hljs.COMMENT(
-                '/\\*',
-                '\\*/',
-            ),
-            {
-                scope: 'variable.language',
-                begin: /\b(this)\b/,
-                relevance: 0
-            },
-            {
-                scope: 'keyword',
-                begin: /\b(else|for|if|in|return)\b/,
-                relevance: 0
-            },
-            {
-                scope: 'literal',
-                begin: /\b(true|false)\b/,
-                relevance: 0
-            },
-            {
-                scope: 'operator',
-                begin: /(\|\||\&\&|\=\=|\!\=|\>\=|\<\=|\=\>)/,
-                relevance: 0
-            },
-            {
-                scope: 'operator',
-                match: /[\+\-\*\/\%\^\&\^\~\>\<\!\|]/,
-                relevance: 0
-            },      
-            {
-                begin: [
-                    /\b(function)\b/,
-                    /[\t ]+/,
-                    /[a-zA-Z_][\w]*/,
-                    /\(/
-                ],
-                beginScope: {
-                    1: "keyword",
-                    3: "title.function"
-                },
-                relevance: 0
-            },
-            {
-                begin: [
-                    /\b(class)\b/,
-                    /[\t ]+/,
-                    /[a-zA-Z_][\w]*/
-                ],
-                beginScope: {
-                    1: "keyword",
-                    3: "title.class"
-                },
-                relevance: 0
-            },
-            {
-                begin: [
-                    /[a-zA-Z_][\w]*/,
-                    /\(/
-                ],
-                beginScope: {
-                    1: "title.function.invoke"
-                },
-                relevance: 0
-            },
-            {
-                scope: 'variable',
-                begin: /[a-zA-Z_][\w]*/,
-                relevance: 0
-            }
-        ]
+        unicodeRegex: true,
+        contains: STATEMENTS
     }
 }
