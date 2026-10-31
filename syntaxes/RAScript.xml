@@ -122,7 +122,7 @@
                     <Rule match="\\u[0-9a-fA-F]{4}" lightStyle="48" darkStyle="49" />
                     <!-- any other escape: RATools reads \t \n \r, and drops the backslash before any other character -->
                     <Rule match="\\." lightStyle="48" darkStyle="49" />
-                    <Rule match="({)([0-9]+)(})">
+                    <Rule match="(\{)([0-9]+)(\})">
                         <Capture index="1" lightStyle="46" darkStyle="47" />
                         <Capture index="2" lightStyle="1" darkStyle="2" />
                         <Capture index="3" lightStyle="46" darkStyle="47" />
