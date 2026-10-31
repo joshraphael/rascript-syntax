@@ -1,6 +1,18 @@
 # What the converters from a TextMate grammar (tmlanguage2*.py) have in common:
-# parsing the grammar's regexes into a tree and writing a tree back out as a
-# regex for another engine, through a dialect.
+# reading the grammar into rules and includes, parsing its regexes into a tree,
+# and writing a tree back out as a regex for another engine, through a dialect.
+#
+# Rule support. Supported: match rules, begin/end rules, name, contentName,
+# captures, beginCaptures and endCaptures with names, patterns, repository,
+# and includes of #key, $self and $base. comment is allowed anywhere, and
+# top-level metadata (version, fileTypes, uuid, ...) is ignored.
+# Unsupported (error):
+#   while and applyEndPatternLast, and a begin rule with no end
+#   captures with their own patterns, or for groups that don't exist
+#   includes of other grammars (source.js) or of unknown repository keys
+#   any other key, e.g. injections, disabled, or a repository nested inside
+#     a rule (see GRAMMAR_KEYS, RULE_KEYS and CAPTURE_KEYS)
+# A converter can support less; its own limits are listed at its top.
 #
 # Regex support. Grammar regexes use Oniguruma syntax; this is what parse()
 # understands. Anything unsupported stops the build with an error naming the rule.
@@ -350,3 +362,173 @@ class Oniguruma(Dialect):
 
 
 ONIGURUMA = Oniguruma()
+
+
+# --------------------------------------------------------------------------
+# Grammar reading: turns a TextMate grammar into Pattern nodes, one for each
+# rule, include and plain pattern list, checking along the way that every key
+# is one the converters handle. Regexes are parsed when a converter first asks
+# for them, so a rule nothing reaches is never parsed.
+# --------------------------------------------------------------------------
+
+# What "$self" and "$base" includes resolve to: the grammar's top-level patterns
+SELF = "$self"
+
+# Keys the converters understand, so a grammar feature they don't handle is
+# reported instead of silently dropped (e.g. injections, disabled, or a
+# repository nested inside a rule). Top-level metadata that doesn't affect
+# highlighting is allowed. while, applyEndPatternLast and capture patterns
+# are listed so they reach their own, more specific errors later.
+GRAMMAR_KEYS = {"$schema", "name", "scopeName", "version", "fileTypes", "firstLineMatch", "foldingStartMarker",
+                "foldingStopMarker", "uuid", "information_for_contributors", "comment", "patterns", "repository"}
+RULE_KEYS = {"comment", "name", "contentName", "match", "begin", "end", "captures", "beginCaptures",
+             "endCaptures", "patterns", "include", "while", "applyEndPatternLast"}
+CAPTURE_KEYS = {"comment", "name", "patterns"}
+
+
+def check_keys(node, allowed, label):
+    unknown = sorted(set(node) - allowed)
+    if unknown:
+        raise ConvertError(f"{label}: unsupported key{'s' * (len(unknown) > 1)} {', '.join(map(repr, unknown))}")
+
+
+class Regex:
+    """One parsed regex of a rule, with the captures that apply to it.
+
+    tree, icase, ngroups: what parse() returned. captures: the grammar's
+    {"1": {"name": ...}, ...} for this regex. label: where it is, for errors,
+    e.g. "#function-names/1 begin".
+    """
+
+    def __init__(self, src, captures, label):
+        try:
+            self.tree, self.icase, self.ngroups = parse(src)
+        except ConvertError as e:
+            raise ConvertError(f"{label}: {e} in {src!r}") from None
+        # checked here, before any converter writes a capture, so a grammar
+        # mistake every converter shares is the first error from all of them
+        for key, cap in sorted(captures.items(), key=lambda kv: int(kv[0])):
+            # captures with their own patterns, or for groups that don't exist
+            if "patterns" in cap or int(key) > self.ngroups:
+                raise ConvertError(f"{label}: capture {key} is not supported")
+        self.src, self.captures, self.label = src, captures, label
+
+
+class Pattern:
+    """One entry of a grammar's pattern list, or a repository entry.
+
+    kind is one of:
+      "match"    a match rule
+      "region"   a begin/end rule
+      "include"  an include; include is its text, target what it resolves to
+      "list"     only a list of patterns (a repository entry that groups rules,
+                 or the grammar's top-level patterns)
+    label says where it is, for errors and comments: "#key" for a repository
+    entry, "patterns" for the top level, then "/n" for the nth rule inside
+    (includes aren't counted), e.g. "#function-names/1".
+    """
+
+    def __init__(self, grammar, raw, label, checked=False):
+        self.grammar, self.raw, self.label = grammar, raw, label
+        if not checked:
+            check_keys(raw, RULE_KEYS, label)
+        for key in ("captures", "beginCaptures", "endCaptures"):
+            for n, cap in raw.get(key, {}).items():
+                check_keys(cap, CAPTURE_KEYS, f"{label} {key} {n}")
+        for p in raw.get("patterns", []):
+            if "include" in p:
+                check_keys(p, RULE_KEYS, f"{label} include {p['include']}")
+        self.comment, self.name, self.content_name = raw.get("comment"), raw.get("name"), raw.get("contentName")
+        self.include = raw.get("include")
+        self.kind = ("include" if "include" in raw else "match" if "match" in raw else
+                     "region" if "begin" in raw else "list")
+        self.patterns = []
+        if self.kind == "include":
+            return
+        n = 0
+        for p in raw.get("patterns", []):
+            if "include" in p:
+                self.patterns.append(Pattern(grammar, p, f"{label} include {p['include']}", checked=True))
+            else:
+                n += 1
+                self.patterns.append(Pattern(grammar, p, f"{label}/{n}"))
+        self._regexes = {}
+
+    @property
+    def is_rule(self):
+        return self.kind in ("match", "region")
+
+    @property
+    def target(self):
+        """An include -> a repository key, or SELF for the top-level patterns."""
+        return self.grammar.resolve(self.include)
+
+    def _regex(self, key, captures, label):
+        if key not in self._regexes:
+            self._regexes[key] = Regex(self.raw[key], captures, label)
+        return self._regexes[key]
+
+    @property
+    def match(self):
+        return self._regex("match", self.raw.get("captures", {}), self.label)
+
+    def _check_region(self):
+        unsupported = {"while", "applyEndPatternLast"} & self.raw.keys()
+        if unsupported:
+            raise ConvertError(f"{self.label}: {', '.join(unsupported)} is not supported")
+        if "end" not in self.raw:
+            raise ConvertError(f"{self.label}: begin without end is not supported")
+
+    # "captures" applies to both begin and end unless they have their own
+    @property
+    def begin(self):
+        self._check_region()
+        return self._regex("begin", self.raw.get("beginCaptures", self.raw.get("captures", {})), self.label + " begin")
+
+    @property
+    def end(self):
+        self._check_region()
+        return self._regex("end", self.raw.get("endCaptures", self.raw.get("captures", {})), self.label + " end")
+
+
+class Grammar:
+    """A TextMate grammar: its repository entries (in order) and top-level
+    patterns as Pattern nodes, and its metadata in raw."""
+
+    def __init__(self, raw):
+        check_keys(raw, GRAMMAR_KEYS, "grammar")
+        self.raw = raw
+        self.repository = {key: Pattern(self, entry, "#" + key) for key, entry in raw.get("repository", {}).items()}
+        self.patterns = Pattern(self, {"patterns": raw.get("patterns", [])}, "patterns")
+
+    def resolve(self, include):
+        """An include's text -> a repository key, or SELF for the top-level patterns."""
+        if include in ("$self", "$base"):
+            return SELF
+        if include.startswith("#") and include[1:] in self.repository:
+            return include[1:]
+        raise ConvertError(f"unsupported include {include!r}")
+
+    def entry(self, key):
+        """A repository key or SELF -> its Pattern."""
+        return self.patterns if key == SELF else self.repository[key]
+
+    def walk(self, patterns, visit, seen):
+        """Calls visit on every rule matched by a pattern list, following
+        includes. seen holds the keys already followed (each is followed once);
+        afterwards it holds every key the walk included."""
+        for p in patterns:
+            if p.kind == "include":
+                key = p.target
+                if key in seen:
+                    continue
+                seen.add(key)
+                entry = self.entry(key)
+                if entry.is_rule:
+                    visit(entry)
+                else:
+                    self.walk(entry.patterns, visit, seen)
+            elif p.is_rule:
+                visit(p)
+            else:
+                self.walk(p.patterns, visit, seen)

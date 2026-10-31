@@ -2,18 +2,10 @@
 
 # Regex support: see tmgrammar.py, which parses the grammar's regexes.
 #
-# Rule support. Supported: match rules, begin/end rules, name, contentName,
-# captures, beginCaptures and endCaptures with names, patterns, repository,
-# and includes of #key, $self and $base. comment is allowed anywhere, and
-# top-level metadata (version, fileTypes, uuid, ...) is ignored.
-# Unsupported (error):
-#   while and applyEndPatternLast, and a begin rule with no end
+# Rule support: see tmgrammar.py, which reads the grammar. Also unsupported
+# (error) in Vim:
 #   end captures of a group (only capture "0" of an end regex is supported)
-#   captures with their own patterns, or for groups that don't exist
 #   captures inside lookarounds
-#   includes of other grammars (source.js) or of unknown repository keys
-#   any other key, e.g. injections, disabled, or a repository nested inside
-#     a rule (see GRAMMAR_KEYS, RULE_KEYS and CAPTURE_KEYS)
 #
 # Not detected:
 #   $1-style capture references in scope names aren't filled in; the part of
@@ -33,7 +25,7 @@ import re
 import sys
 
 import tmgrammar
-from tmgrammar import ConvertError, LOOKAROUND, children, parse, zero_width
+from tmgrammar import SELF, ConvertError, LOOKAROUND, children, zero_width
 
 MAINTAINER = "Joshua Raphael"
 URL = "https://github.com/joshraphael/rascript-syntax"
@@ -378,32 +370,6 @@ def scope_to_vim(scope):
     return None
 
 
-# What "$self" and "$base" includes resolve to: the grammar's top-level
-# patterns, written in Vim as the cluster @<lang>Top
-SELF = "$self"
-
-# Keys the converter understands, so a grammar feature it doesn't handle is
-# reported instead of silently dropped (e.g. injections, disabled, or a
-# repository nested inside a rule). Top-level metadata that doesn't affect
-# highlighting is allowed. while, applyEndPatternLast and capture patterns
-# are listed so they reach their own, more specific errors later.
-GRAMMAR_KEYS = {"$schema", "name", "scopeName", "version", "fileTypes", "firstLineMatch", "foldingStartMarker",
-                "foldingStopMarker", "uuid", "information_for_contributors", "comment", "patterns", "repository"}
-RULE_KEYS = {"comment", "name", "contentName", "match", "begin", "end", "captures", "beginCaptures",
-             "endCaptures", "patterns", "include", "while", "applyEndPatternLast"}
-CAPTURE_KEYS = {"comment", "name", "patterns"}
-
-
-def check_keys(node, allowed, label):
-    unknown = sorted(set(node) - allowed)
-    if unknown:
-        raise ConvertError(f"{label}: unsupported key{'s' * (len(unknown) > 1)} {', '.join(map(repr, unknown))}")
-
-
-def is_rule(node):
-    return "match" in node or "begin" in node
-
-
 def camel(key):
     return "".join(w[:1].upper() + w[1:] for w in re.split(r"[^0-9A-Za-z]+", key) if w)
 
@@ -411,65 +377,35 @@ def camel(key):
 class Converter:
     def __init__(self, grammar):
         self.grammar = grammar
-        self.lang = grammar.get("scopeName", "source.tmlang").split(".")[-1]
-        self.repository = grammar.get("repository", {})
-        self.top_patterns = grammar.get("patterns", [])
+        self.lang = grammar.raw.get("scopeName", "source.tmlang").split(".")[-1]
+        # the top-level patterns are written as the cluster @<lang>Top
         self.top_name = self.lang + "Top"
-        self.group_names, self.rule_labels = {}, {}
+        self.group_names = {}
         self.highlight_links = []  # (rule group, Vim group) pairs for highlight lines
         self.used_clusters = set()  # repository keys (or SELF) that something includes
 
-    def assign(self, node, base, label):
-        """Names each rule after its repository key and position, and checks
-        that every key in the grammar is one the converter handles."""
-        check_keys(node, RULE_KEYS, label)
-        for key in ("captures", "beginCaptures", "endCaptures"):
-            for n, cap in node.get(key, {}).items():
-                check_keys(cap, CAPTURE_KEYS, f"{label} {key} {n}")
-        for p in node.get("patterns", []):
-            if "include" in p:
-                check_keys(p, RULE_KEYS, f"{label} include {p['include']}")
-        if "include" in node:
+    def assign(self, node, base):
+        """Names each rule after its repository key and position."""
+        if node.kind == "include":
             return
-        nested = is_rule(node)
+        nested = node.is_rule
         if nested:
             name, n = base, 2
             while name in self.group_names.values():
                 name, n = f"{base}{n}", n + 1
-            self.group_names[id(node)], self.rule_labels[id(node)], base = name, label, name
-        inline = [p for p in node.get("patterns", []) if "include" not in p]
+            self.group_names[id(node)], base = name, name
+        inline = [p for p in node.patterns if p.kind != "include"]
         for i, p in enumerate(inline):
             single = len(inline) == 1 and not nested
-            self.assign(p, base if single else f"{base}_{i + 1}", f"{label}/{i + 1}")
+            self.assign(p, base if single else f"{base}_{i + 1}")
 
-    def resolve(self, include):
-        """An include -> a repository key, or SELF for the top-level patterns."""
-        if include in ("$self", "$base"):
-            return SELF
-        if include.startswith("#") and include[1:] in self.repository:
-            return include[1:]
-        raise ConvertError(f"unsupported include {include!r}")
+    def walk(self, patterns, visit):
+        """grammar.walk, noting every repository entry it includes."""
+        seen = set()
+        self.grammar.walk(patterns, visit, seen)
+        self.used_clusters |= seen
 
-    def walk(self, pats, visit, seen):
-        """Calls visit on every rule matched by a pattern list, following includes."""
-        for p in pats:
-            if "include" in p:
-                key = self.resolve(p["include"])
-                if key in seen:
-                    continue
-                seen.add(key)
-                self.used_clusters.add(key)
-                entry = {"patterns": self.top_patterns} if key == SELF else self.repository[key]
-                if is_rule(entry):
-                    visit(entry)
-                else:
-                    self.walk(entry.get("patterns", []), visit, seen)
-            elif is_rule(p):
-                visit(p)
-            else:
-                self.walk(p.get("patterns", []), visit, seen)
-
-    def contains(self, pats):
+    def contains(self, patterns):
         """A pattern list -> the names Vim needs in contains=.
 
         Rules are listed by group name; includes become clusters (@name), so
@@ -477,14 +413,14 @@ class Converter:
           [{"include": "#numbers"}, {"match": ...}] -> ["@rascriptNumbers", "rascriptStrings_1"]
         """
         out = []
-        for p in pats:
-            if "include" in p:
-                key = self.resolve(p["include"])
+        for p in patterns:
+            if p.kind == "include":
+                key = p.target
                 out.append("@" + (self.top_name if key == SELF else self.lang + camel(key)))
-            elif is_rule(p):
+            elif p.is_rule:
                 out.append(self.group_names[id(p)])
             else:
-                out.extend(self.contains(p.get("patterns", [])))
+                out.extend(self.contains(p.patterns))
         return out
 
     def link(self, group, scope):
@@ -492,16 +428,6 @@ class Converter:
         vim = scope_to_vim(scope)
         if vim:
             self.highlight_links.append((group, vim))
-
-    @staticmethod
-    def parse_rule(regex, label):
-        """parse() with the rule's location added to any error message, and
-        the Vim word boundaries picked."""
-        try:
-            node, icase, ngroups = parse(regex)
-            return word_boundaries(node), icase, ngroups
-        except ConvertError as e:
-            raise ConvertError(f"{label}: {e} in {regex!r}") from None
 
     @staticmethod
     def pattern(node, icase, target=None):
@@ -514,9 +440,9 @@ class Converter:
         body = render(node) if target is None else render_capture(node, target)
         return "/" + ENGINE + "\\v" + "\\c" * icase + body + "/"
 
-    def captures(self, regex, caps, name, label, prefix, out):
-        r"""Parses a rule's regex, writes its capture items and works out the
-        scope for the whole match.
+    def captures(self, regex, name, prefix, out):
+        r"""Writes a rule's capture items and works out the scope for the
+        whole match of one of its regexes (a tmgrammar.Regex).
 
         Returns (scope, capture group names, Vim pattern). The whole match is
         colored by the rule's name, unless a capture covers all of it, in
@@ -527,7 +453,7 @@ class Converter:
         named prefix + number (e.g. rascriptHeader_1_c2) and added to out; the
         rule's match then lists them in contains=.
         """
-        node, icase, ngroups = self.parse_rule(regex, label)
+        node, icase, caps = word_boundaries(regex.tree), regex.icase, regex.captures
         # unwrap groups that surround the entire pattern, noting capture numbers
         #   ((?:a|b))  -> groups 1 and the (?:) both wrap everything -> [1]
         whole_groups, n = [], node
@@ -540,28 +466,24 @@ class Converter:
             whole = caps.get(key, {}).get("name", whole)
         groups = []
         for key, cap in sorted(caps.items(), key=lambda kv: int(kv[0])):
-            # captures with their own patterns, or for groups that don't exist
-            if "patterns" in cap or int(key) > ngroups:
-                raise ConvertError(f"{label}: capture {key} is not supported")
             if key == "0" or not cap.get("name") or int(key) in whole_groups:
                 continue
             try:
                 pat = self.pattern(node, icase, int(key))
             except ConvertError as e:
-                raise ConvertError(f"{label}: capture {key}: {e}") from None
+                raise ConvertError(f"{regex.label}: capture {key}: {e}") from None
             groups.append(f"{prefix}{key}")
             out.append(f"syntax match {groups[-1]} {pat} contained")
             self.link(groups[-1], cap["name"])
         return whole, groups, self.pattern(node, icase)
 
-    def emit_match(self, rule, g, contained, label, caps_out):
+    def emit_match(self, rule, g, contained, caps_out):
         """A match rule -> one syntax match line (capture items go in caps_out)."""
-        whole, groups, pat = self.captures(rule["match"], rule.get("captures", {}), rule.get("name"),
-                                           label, f"{g}_c", caps_out)
+        whole, groups, pat = self.captures(rule.match, rule.name, f"{g}_c", caps_out)
         self.link(g, whole)
         return [f"syntax match {g} {pat}" + (f" contains={','.join(groups)}" if groups else "") + contained]
 
-    def emit_region(self, rule, g, contained, label, caps_out):
+    def emit_region(self, rule, g, contained, caps_out):
         r"""A begin/end rule -> a syntax region line (two lines with begin captures).
 
         e.g. strings: syntax region rascriptStrings matchgroup=rascriptStrings_begin
@@ -580,15 +502,8 @@ class Converter:
         %(\_.)@= is zero-width and matches anywhere, so the body starts
         immediately; contained keeps it from starting anywhere else.
         """
-        unsupported = {"while", "applyEndPatternLast"} & rule.keys()
-        if unsupported:
-            raise ConvertError(f"{label}: {', '.join(unsupported)} is not supported")
-        if "end" not in rule:
-            raise ConvertError(f"{label}: begin without end is not supported")
-        name = rule.get("name")
-        # "captures" applies to both begin and end unless they have their own
-        bwhole, bgroups, begin = self.captures(rule["begin"], rule.get("beginCaptures", rule.get("captures", {})),
-                                               name, label + " begin", f"{g}_bc", caps_out)
+        name = rule.name
+        bwhole, bgroups, begin = self.captures(rule.begin, name, f"{g}_bc", caps_out)
         lines, body = [], g
         if bgroups:
             body = g + "_body"
@@ -598,29 +513,28 @@ class Converter:
         else:
             self.link(g + "_begin", bwhole)
             start = f"matchgroup={g}_begin start={begin}"
-        ewhole, egroups, end = self.captures(rule["end"], rule.get("endCaptures", rule.get("captures", {})),
-                                             name, label + " end", f"{g}_ec", [])
+        ewhole, egroups, end = self.captures(rule.end, name, f"{g}_ec", [])
         if egroups:
-            raise ConvertError(f"{label}: end captures other than 0 are not supported")
+            raise ConvertError(f"{rule.label}: end captures other than 0 are not supported")
         self.link(g + "_end", ewhole)
-        members = self.contains(rule.get("patterns", []))
+        members = self.contains(rule.patterns)
         # contentName colors only the body; name colors begin, body and end
-        self.link(body, rule.get("contentName") or name)
+        self.link(body, rule.content_name or name)
         # the region goes first so the begin match, defined after it, wins
         lines.insert(0, f"syntax region {body} {start} matchgroup={g}_end end={end}"
                         + (f" contains={','.join(members)}" if members else "") + contained)
         return lines
 
     def convert(self):
-        check_keys(self.grammar, GRAMMAR_KEYS, "grammar")
-        for key, entry in self.repository.items():
-            self.assign(entry, self.lang + camel(key), "#" + key)
-        self.assign({"patterns": self.top_patterns}, self.top_name, "patterns")
+        for key, entry in self.grammar.repository.items():
+            self.assign(entry, self.lang + camel(key))
+        self.assign(self.grammar.patterns, self.top_name)
+        top_patterns = self.grammar.patterns.patterns
 
         # rules reachable from the top level; every other rule only appears
         # inside a region, so it is marked contained (Vim won't try it elsewhere)
         top = set()
-        self.walk(self.top_patterns, lambda r: top.add(id(r)), set())
+        self.walk(top_patterns, lambda r: top.add(id(r)))
 
         # every rule, in the order TextMate would try them: each rule followed
         # by the rules inside it (if it is a region), each listed once
@@ -629,33 +543,33 @@ class Converter:
         def visit(rule):
             if all(r is not rule for r in order):
                 order.append(rule)
-                self.walk(rule.get("patterns", []) if "begin" in rule else [], visit, set())
+                self.walk(rule.patterns if rule.kind == "region" else [], visit)
 
-        self.walk(self.top_patterns, visit, set())
+        self.walk(top_patterns, visit)
         # When several rules could match at the same spot, TextMate uses the
         # first one in the grammar but Vim uses the last one defined. Writing
         # the rules in reverse makes Vim pick the same rule VS Code does, e.g.
         # "if" is a control keyword, not the catch-all variable rule
         rules_out, caps_out = [], []
         for rule in reversed(order):
-            g, label = self.group_names[id(rule)], self.rule_labels[id(rule)]
-            emit = self.emit_match if "match" in rule else self.emit_region
+            g = self.group_names[id(rule)]
+            emit = self.emit_match if rule.kind == "match" else self.emit_region
             contained = "" if id(rule) in top else " contained"
-            rules_out += [f'" {label}'] + emit(rule, g, contained, label, caps_out)
+            rules_out += [f'" {rule.label}'] + emit(rule, g, contained, caps_out)
 
         # one cluster per included repository entry, listing the rules in it
         # e.g. syntax cluster rascriptNumbers contains=rascriptNumbers_1,rascriptNumbers_2
         clusters_out = []
-        for key, entry in self.repository.items():
+        for key, entry in self.grammar.repository.items():
             if key in self.used_clusters:
-                members = [self.group_names[id(entry)]] if is_rule(entry) else self.contains(entry.get("patterns", []))
+                members = [self.group_names[id(entry)]] if entry.is_rule else self.contains(entry.patterns)
                 clusters_out.append(f"syntax cluster {self.lang}{camel(key)} contains={','.join(members) or 'NONE'}")
         if SELF in self.used_clusters:
-            clusters_out.append(f"syntax cluster {self.top_name} contains={','.join(self.contains(self.top_patterns))}")
+            clusters_out.append(f"syntax cluster {self.top_name} contains={','.join(self.contains(top_patterns))}")
 
-        version = self.grammar.get("version")
+        version = self.grammar.raw.get("version")
         out = ['" Vim syntax file',
-               f'" Language:    {self.grammar.get("name", self.lang)}',
+               f'" Language:    {self.grammar.raw.get("name", self.lang)}',
                f'" Maintainer:  {MAINTAINER}',
                f'" URL:         {URL}',
                f'" Last Change: {datetime.datetime.now(datetime.timezone.utc):%Y %b %d}']
@@ -699,7 +613,7 @@ def main():
     with open(args.grammar, encoding="utf-8") as f:
         grammar = json.load(f)
     try:
-        result = Converter(grammar).convert()
+        result = Converter(tmgrammar.Grammar(grammar)).convert()
     except ConvertError as e:
         sys.exit(f"error: {e}")
     sys.stdout.write(result)
