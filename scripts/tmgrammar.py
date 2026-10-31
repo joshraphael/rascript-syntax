@@ -45,7 +45,10 @@
 #     repeat (a** a{1,2}{2}), a repeat with nothing before it (*a {1})
 #   unbalanced parentheses
 
+import argparse
+import json
 import re
+import sys
 
 
 class ConvertError(Exception):
@@ -253,6 +256,37 @@ def zero_width(node):
     return node[0] in ("anchor", "wordb") or node[0] == "group" and node[1] in LOOKAROUND
 
 
+def capture_path(root, target):
+    """The ids of every node on the way from root down to capture group
+    target, the group included."""
+    path = set()
+
+    def find(node):
+        hit = node[0] == "group" and node[3] == target or any(find(c) for c in children(node))
+        if hit:
+            path.add(id(node))
+        return hit
+
+    if not find(root):
+        raise ConvertError(f"capture group {target} does not exist")
+    return path
+
+
+def nesting(root, target):
+    """What capture group target is inside, from the outside in, for errors:
+    "in an alternation", "repeated", "in a lookaround" or "nested in another group"."""
+    path, node = capture_path(root, target), root
+    while not (node[0] == "group" and node[3] == target):
+        if node[0] == "alt":
+            return "in an alternation"
+        if node[0] == "rep":
+            return "repeated"
+        if node[0] == "group":
+            return "in a lookaround" if node[1] in LOOKAROUND else "nested in another group"
+        node = next(c for c in children(node) if id(c) in path)
+    return "at the top level"
+
+
 # --------------------------------------------------------------------------
 # Regex writing: render() walks a tree and a dialect says how each node is
 # written for one regex engine. A converter subclasses Dialect and fills in
@@ -413,6 +447,75 @@ class Regex:
                 raise ConvertError(f"{label}: capture {key} is not supported")
         self.src, self.captures, self.label = src, captures, label
 
+    @property
+    def whole_groups(self):
+        """The capture numbers of the groups around the entire regex.
+          ((?:a|b))  -> groups 1 and the (?:) both wrap everything -> [1]
+        """
+        groups, n = [], self.tree
+        while n[0] == "seq" and len(n[1]) == 1 or n[0] == "group" and n[1] in ("(", "(?:"):
+            if n[0] == "group" and n[3]:
+                groups.append(n[3])
+            n = n[1][0] if n[0] == "seq" else n[2]
+        return groups
+
+    def whole_scope(self, name):
+        r"""The scope of the whole match: the rule's name, unless a capture
+        covers all of it, in which case the capture's name wins:
+          capture "0"                       always the whole match
+          a group around the entire regex   e.g. capture "1" of ([a-zA-Z_]\w*)
+        """
+        for key in ["0"] + [str(i) for i in self.whole_groups]:
+            name = self.captures.get(key, {}).get("name", name)
+        return name
+
+    def split(self):
+        r"""Splits the regex at its named captures, for engines that scope
+        parts of a match instead of capture groups.
+
+        Returns [(node, key)]: the parts in order, key being the capture's
+        number for a part that is a named capture and None for the text
+        between them. Capture 0 isn't split out (see whole_scope). A run of
+        only zero-width items (\b ^ $ lookarounds) joins the capture after it,
+        or else the one before it, so no part is empty:
+          ^//[\t ]*(#ID)[\t ]*=[\t ]*(\d+)$
+            -> ^//[\t ]*  #ID (1)  [\t ]*=[\t ]*  \d+$ (2)
+          \b(for)[\t ]+(\b(?!\d)\w+)[\t ]+(in)\b
+            -> \bfor (1)  [\t ]+  \b(?!\d)\w+ (2)  [\t ]+  in\b (3)
+        A named capture has to be one of the regex's top-level items to be
+        split out; one nested in another group, repeated, in an alternation or
+        in a lookaround is an error.
+        """
+        named = {int(k) for k, cap in self.captures.items() if k != "0" and cap.get("name")}
+        items = self.tree[1] if self.tree[0] == "seq" else [self.tree]
+        # [items, key] runs: each named top-level capture alone, the rest grouped
+        runs = []
+        for item in items:
+            if item[0] == "group" and item[3] in named:
+                runs.append([[item[2]], str(item[3])])
+            elif runs and runs[-1][1] is None:
+                runs[-1][0].append(item)
+            else:
+                runs.append([[item], None])
+        for key in sorted(named - {int(k) for _, k in runs if k}):
+            raise ConvertError(f"{self.label}: capture {key} can't be split out of the regex: it is "
+                               + nesting(self.tree, key))
+        if len(runs) > 1:
+            # move zero-width-only runs into a neighbouring capture
+            for i in range(len(runs) - 1, -1, -1):
+                items, key = runs[i]
+                if key is None and all(zero_width(x) for x in items):
+                    j = i + 1 if i + 1 < len(runs) and runs[i + 1][1] else i - 1 if i and runs[i - 1][1] else None
+                    if j is not None:
+                        runs[j][0] = items + runs[j][0] if j > i else runs[j][0] + items
+                        del runs[i]
+        parts = []
+        for items, key in runs:
+            # an alternation joined with other items needs a group around it: a|b\b -> (?:a|b)\b
+            items = [("group", "(?:", x, None) if x[0] == "alt" and len(items) > 1 else x for x in items]
+            parts.append((items[0] if len(items) == 1 else ("seq", items), key))
+        return parts
+
 
 class Pattern:
     """One entry of a grammar's pattern list, or a repository entry.
@@ -532,3 +635,40 @@ class Grammar:
                 visit(p)
             else:
                 self.walk(p.patterns, visit, seen)
+
+
+# --------------------------------------------------------------------------
+# Scopes and the command line
+# --------------------------------------------------------------------------
+
+def scope_lookup(table, scope):
+    """Returns what a table maps a scope to, by its longest listed prefix, or
+    None if no prefix is in the table. e.g. with {"constant": "Constant",
+    "constant.numeric": "Number"}:
+      "constant.numeric.decimal.rascript" -> "Number"   (not "Constant": shorter)
+      "meta.something.rascript"           -> None
+
+    A scope can be several names separated by spaces; the last one is the most
+    specific, so it is tried first.
+    """
+    for s in reversed((scope or "").split()):
+        parts = s.split(".")
+        for n in range(len(parts), 0, -1):
+            if ".".join(parts[:n]) in table:
+                return table[".".join(parts[:n])]
+    return None
+
+
+def main(description, convert):
+    """A converter's command line: reads the grammar named on it, writes
+    convert(Grammar) to stdout, and exits with "error: ..." on a ConvertError."""
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument("grammar", help="TextMate grammar to convert (.tmLanguage.json)")
+    args = parser.parse_args()
+    with open(args.grammar, encoding="utf-8") as f:
+        raw = json.load(f)
+    try:
+        result = convert(Grammar(raw))
+    except ConvertError as e:
+        sys.exit(f"error: {e}")
+    sys.stdout.write(result)
