@@ -7,6 +7,8 @@ import re
 import sys
 import xml.etree.ElementTree as ET
 
+import tmgrammar
+
 
 def first_difference(a, b, path="grammar"):
     if type(a) is not type(b):
@@ -38,6 +40,32 @@ def check_tmlanguage(json_path, plist_path):
     diff = first_difference(grammar, plist)
     if diff:
         raise ValueError(f"{plist_path} doesn't match {json_path} at {diff}")
+
+
+def grammar_regexes(node, path="grammar"):
+    """Every match/begin/end/while regex in a TextMate grammar, with where it is."""
+    if isinstance(node, list):
+        for i, child in enumerate(node):
+            yield from grammar_regexes(child, f"{path}[{i}]")
+    elif isinstance(node, dict):
+        for key, value in node.items():
+            if key in ("match", "begin", "end", "while") and isinstance(value, str):
+                yield f"{path}.{key}", value
+            else:
+                yield from grammar_regexes(value, f"{path}.{key}")
+
+
+def check_regexes(json_path):
+    with open(json_path, encoding="utf-8") as f:
+        grammar = json.load(f)
+    for path, regex in grammar_regexes(grammar):
+        try:
+            tree, icase, _ = tmgrammar.parse(regex)
+        except tmgrammar.ConvertError as e:
+            raise ValueError(f"{json_path}: {path}: {e} in {regex!r}") from None
+        back = "(?i)" * icase + tmgrammar.render(tree, tmgrammar.ONIGURUMA)
+        if back != regex:
+            raise ValueError(f"{json_path}: {path}: {regex!r} comes back from the regex tree as {back!r}")
 
 
 def check_notepad(xml_path):
@@ -77,12 +105,16 @@ def main():
     tm = checks.add_parser("tmlanguage", help="TextMate grammar JSON and its Sublime plist")
     tm.add_argument("json", help="rascript.tmLanguage.json")
     tm.add_argument("plist", help="rascript.tmLanguage")
+    rx = checks.add_parser("regexes", help="TextMate grammar regexes round-trip through tmgrammar.py's regex tree")
+    rx.add_argument("json", help="rascript.tmLanguage.json")
     npp = checks.add_parser("notepad", help="Notepad++ grammar XML")
     npp.add_argument("xml", help="RAScript.xml")
     args = parser.parse_args()
     try:
         if args.check == "tmlanguage":
             check_tmlanguage(args.json, args.plist)
+        elif args.check == "regexes":
+            check_regexes(args.json)
         elif args.check == "notepad":
             check_notepad(args.xml)
     except Exception as e:
