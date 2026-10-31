@@ -80,23 +80,25 @@ class ConvertError(Exception):
 
 
 # --------------------------------------------------------------------------
-# Regex parsing: turns an Oniguruma regex string into a tree of tuples.
+# Regex parsing: turns an Oniguruma regex string into a tree of tuples that
+# holds what the regex means in Oniguruma, not how any editor writes it.
 # Each node is a tuple whose first item names its type; the rest are its
 # fields, read by position (node[1], node[2], ...):
 #   ("seq", items)                  items: nodes matched one after another
 #   ("alt", branches)               branches: nodes, any one may match (a|b)
-#   ("group", closer, child, index) ( ) group; closer: Vim closing text from
-#                                   GROUPS; index: capture number or None
+#   ("group", kind, child, index)   ( ) group; kind: its opener from
+#                                   GROUP_KINDS, e.g. "(?="; index: capture
+#                                   number or None
 #   ("rep", child, lo, hi, lazy)    child repeated lo..hi times (hi None =
 #                                   no limit); from * + ? {n,m}
 #   ("char", c)                     one literal character
-#   ("esc", c)                      class escape letter from ESC, e.g. "d"
-#   ("class", vim, wordy)           a [...] class, already in Vim syntax;
-#                                   wordy: it can match a word character
-#   ("anchor", vim)                 ^ or $, stored as its Vim text
-#   ("any", ".")                    . (any character)
-#   ("wordb",)                      \b (word boundary); only exists while
-#                                   parsing, then becomes an anchor < or >
+#   ("esc", c)                      escape letter from ESCAPES, e.g. "d"
+#   ("class", negated, items)       a [...] class; items are ("char", c),
+#                                   ("range", lo, hi) with lo/hi characters,
+#                                   and ("esc", c) with c from CLASS_ESCAPES
+#   ("anchor", c)                   ^ or $
+#   ("any",)                        . (any character)
+#   ("wordb",)                      \b (word boundary)
 # e.g. "a+|b" -> ("alt", [("seq", [("rep", ("char", "a"), 1, None, False)]),
 #                         ("seq", [("char", "b")])])
 # --------------------------------------------------------------------------
@@ -118,34 +120,31 @@ TOKEN = re.compile(r"\\.|\[\^?\]?(?:\\.|[^\]\\])*\]|\(\?(?:<?[=!]|[:>]|i\)|[^:)]
 # n = min repeats, m = max repeats; lazy = match as few repeats as possible
 QUANTIFIER_PARTS = re.compile(r"(?:([*+?])|\{(\d+)(,?)(\d*)\})(\??)")
 
-# Maps an Oniguruma group opener -> the text that closes that group in Vim,
-# e.g. "(?=" -> ")@=". Only these group types are supported. In Oniguruma the
-# type is marked at the start of the group; in Vim every group opens with %(
-# and the type is marked after the closing ):
-#   (x)     capture group       -> %(x)
-#   (?:x)   non-capturing group -> %(x)
-#   (?>x)   atomic group        -> %(x)@>
-#   (?=x)   lookahead           -> %(x)@=     x must follow
-#   (?!x)   negative lookahead  -> %(x)@!     x must not follow
-#   (?<=x)  lookbehind          -> %(x)@<=    x must come before
-#   (?<!x)  negative lookbehind -> %(x)@<!    x must not come before
-# Capture groups become %( too: Vim never needs the captured text, the parser
-# only numbers them so the grammar's "captures" can refer to them
-GROUPS = {"(": ")", "(?:": ")", "(?>": ")@>", "(?=": ")@=", "(?!": ")@!", "(?<=": ")@<=", "(?<!": ")@<!"}
+# The group openers the parser supports:
+#   (x)     capture group
+#   (?:x)   non-capturing group
+#   (?>x)   atomic group
+#   (?=x)   lookahead           x must follow
+#   (?!x)   negative lookahead  x must not follow
+#   (?<=x)  lookbehind          x must come before
+#   (?<!x)  negative lookbehind x must not come before
+GROUP_KINDS = ("(", "(?:", "(?>", "(?=", "(?!", "(?<=", "(?<!")
 
-# Maps an Oniguruma escape letter -> the Vim escape for the same set of
-# characters, e.g. "h" -> r"\x". Uppercase is the opposite set (\W = any
-# non-word character). Escaped letters not listed here or in CONTROL are an
-# error (see escape_char).
-#   \w  word character: letter, digit or _    -> \k   (Vim's \w is ASCII only;
-#                                                      \k is a keyword character
-#                                                      from syntax iskeyword, which
-#                                                      includes non-ASCII letters)
-#   \s  whitespace: space, tab, newline ...   -> \s
-#   \d  digit 0-9                             -> \d
-#   \h  hex digit 0-9 a-f A-F                 -> \x   (Vim's \h means something
-#                                                      else: letter or _)
-ESC = {"w": r"\k", "W": r"\W", "s": r"\s", "S": r"\S", "d": r"\d", "D": r"\D", "h": r"\x", "H": r"\X"}
+# The lookaround openers. Lookarounds check text without consuming it, so they
+# don't count as a neighbouring character
+LOOKAROUND = ("(?=", "(?!", "(?<=", "(?<!")
+
+# The escape letters for sets of characters. Uppercase is the opposite set
+# (\W = any non-word character). Escaped letters not listed here or in CONTROL
+# are an error (see escape_char).
+#   \w  word character: letter, digit or _
+#   \s  whitespace: space, tab, newline ...
+#   \d  digit 0-9
+#   \h  hex digit 0-9 a-f A-F
+ESCAPES = "wWsSdDhH"
+
+# The escape letters allowed inside a [...] class: \w \d \s \h
+CLASS_ESCAPES = "wdsh"
 
 # Maps an escape letter for an invisible character -> that actual character,
 # e.g. "t" -> a real tab. The parser stores \t \n \r as plain ("char", c)
@@ -154,29 +153,6 @@ ESC = {"w": r"\k", "W": r"\W", "s": r"\s", "S": r"\S", "d": r"\d", "D": r"\D", "
 #   \n  newline
 #   \r  carriage return
 CONTROL = {"t": "\t", "n": "\n", "r": "\r"}
-
-# Maps a class escape letter -> the characters it stands for, written as
-# ranges so they can go inside Vim's [...]; Vim doesn't understand \w \d \s
-# inside brackets. e.g. [\w-] -> [0-9A-Za-z_\-]
-#   \w  letters, digits, _      \d  digits
-#   \s  whitespace (\d11 and \d12 are Vim's vertical tab and form feed)
-#   \h  hex digits
-CLASS_ESC = {"w": "0-9A-Za-z_", "d": "0-9", "s": r" \t\r\n\d11\d12", "h": "0-9A-Fa-f"}
-
-# Maps an invisible character -> how Vim writes it in a pattern, the reverse
-# of CONTROL, so the generated file never contains a raw tab or newline
-VIM_CONTROL = {"\t": r"\t", "\n": r"\n", "\r": r"\r"}
-
-# Word characters (what \w matches). Used two ways:
-#  - render(): these are the only ASCII characters that can be written bare in
-#    a Vim very magic (\v) pattern; every other one is special (= < > @ % {
-#    ...), so it gets a backslash
-#  - edge_is_word(): deciding whether \b is the start or end of a word
-WORD = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")
-
-# Vim closers of the lookaround groups (see GROUPS). Lookarounds check text
-# without consuming it, so they don't count as a neighbouring character
-LOOKAROUND = (")@=", ")@!", ")@<=", ")@<!")
 
 
 def parse(src):
@@ -205,7 +181,7 @@ def parse(src):
                 lo, hi = {"*": (0, None), "+": (1, None), "?": (0, 1)}[sym] if sym else (
                     int(lo), int(hi) if hi else None if comma else int(lo))
                 items[-1] = ("rep", items[-1], lo, hi, bool(lazy))
-            elif t in GROUPS:
+            elif t in GROUP_KINDS:
                 index = None
                 if t == "(":
                     count[0] += 1
@@ -213,16 +189,16 @@ def parse(src):
                 child = alt()
                 if not toks or toks.pop() != ")":
                     raise ConvertError("missing ')'")
-                items.append(("group", GROUPS[t], child, index))
+                items.append(("group", t, child, index))
             elif t.startswith("[") and len(t) > 1:
                 items.append(char_class(t))
             elif t in ("^", "$"):
-                items.append(("anchor", "\\_" + t))
+                items.append(("anchor", t))
             elif t == ".":
-                items.append(("any", "."))
+                items.append(("any",))
             elif t == r"\b":
                 items.append(("wordb",))
-            elif t[0] == "\\" and t[1:] in ESC:
+            elif t[0] == "\\" and t[1:] in ESCAPES:
                 items.append(("esc", t[1]))
             elif t[0] == "\\":
                 items.append(("char", escape_char(t[1])))
@@ -234,16 +210,6 @@ def parse(src):
                 raise ConvertError("{,n} repeats are not supported, use {0,n}")
             else:
                 items.append(("char", t))
-        # Vim has no \b, only < (a word starts here) and > (a word ends here).
-        # Pick one by looking at what is next to the \b in this sequence:
-        #   \bif\b    -> <if>        word after the first, word before the last
-        #   x\b\.     -> x>\.       word before, punctuation after: a word ends
-        #   (a|\b)    -> %(a|%(<|>)) nothing next to it, so allow either
-        for i, item in enumerate(items):
-            if item[0] == "wordb":
-                starts = i + 1 < len(items) and edge_is_word(items[i + 1], False)
-                ends = i > 0 and edge_is_word(items[i - 1], True)
-                items[i] = ("anchor", "<" if starts and not ends else ">" if ends and not starts else "%(<|>)")
         return ("seq", items)
 
     node = alt()
@@ -261,20 +227,17 @@ def escape_char(c):
 
 
 def char_class(token):
-    r"""Translates a [...] class token into a ("class", vim, wordy) node.
+    r"""Parses a [...] class token into a ("class", negated, items) node.
 
     Reads the inside one item at a time, where an item is a character or an
     escape, optionally followed by -character for a range (a-z). \w \d \s \h
-    expand through CLASS_ESC; other items are kept, with ] ^ - \ escaped
-    because those are the only characters special inside Vim's brackets.
-    wordy is True if the class can match a word character (used for \b);
-    a negated class counts as not wordy.
+    become ("esc", c) items; escaped characters are stored without their
+    backslash.
 
     Examples (token -> returned node):
-      r"[a-zA-Z_]"   -> ("class", r"[a-zA-Z_]", True)              nothing to change
-      r"[\w-]"       -> ("class", r"[0-9A-Za-z_\-]", True)         \w expanded, - escaped
-      r'[^\s"]'      -> ("class", r'[^ \t\r\n\d11\d12"]', False)   \s expanded, ^ kept
-      r"[\.\]a-z^]"  -> ("class", r"[.\]a-z\^]", True)             \. unescaped, ] ^ escaped
+      r"[a-z_]"      -> ("class", False, [("range", "a", "z"), ("char", "_")])
+      r'[^\s"]'      -> ("class", True, [("esc", "s"), ("char", '"')])
+      r"[\.\]]"      -> ("class", False, [("char", "."), ("char", "]")])
       r"[[:alpha:]]" -> raises ConvertError
       r"[a[b]"       -> raises ConvertError   (from [a[b]], a nested class)
       r"[a-z&&[^x]"  -> raises ConvertError   (from [a-z&&[^x]], an intersection)
@@ -291,24 +254,18 @@ def char_class(token):
         raise ConvertError("character class intersections (&&) are not supported")
     if "[" in units:
         raise ConvertError("nested character classes are not supported")
-    parts, wordy = [], False
+    items = []
     # split the inside into (lo, hi) items, hi set only for ranges like a-z;
     # lo/hi are one char or a backslash escape, and a - with nothing after it
     # is a literal dash. e.g. inside of [^\s"a-z] is \s"a-z -> (\s, ""), (", ""), (a, z)
     for lo, hi in re.findall(r"(\\.|[^\\])(?:-(\\.|[^\\]))?", token[1 + negated:-1]):
-        # "\s" -> " \t\r\n\d11\d12"
-        if lo[0] == "\\" and lo[1] in CLASS_ESC and not hi:
-            parts.append(CLASS_ESC[lo[1]])
-            wordy |= lo[1] in "wdh"
+        if lo[0] == "\\" and lo[1] in CLASS_ESCAPES and not hi:
+            items.append(("esc", lo[1]))
             continue
-        # one character, or two for a range: '"' -> ['"'], "a"-"z" -> ["a", "z"],
-        # "\." -> ["."], "\t" -> [real tab]
+        # "\." -> ".", "\t" -> real tab
         chars = [escape_char(x[1]) if x[0] == "\\" else x for x in (lo, hi) if x]
-        wordy |= any(c in WORD for c in chars)
-        # back to Vim text: ["a", "z"] -> "a-z", [real tab] -> "\t", ["]"] -> "\]"
-        parts.append("-".join(VIM_CONTROL.get(c, "\\" + c if c in "]^-\\" else c) for c in chars))
-    # -> "[^ \t\r\n\d11\d12"a-z]"
-    return ("class", "[" + "^" * negated + "".join(parts) + "]", wordy and not negated)
+        items.append(("range", *chars) if hi else ("char", chars[0]))
+    return ("class", negated, items)
 
 
 def children(node):
@@ -319,8 +276,74 @@ def children(node):
 
 
 def zero_width(node):
-    """True for nodes that match a position, not a character: anchors, lookarounds."""
-    return node[0] == "anchor" or node[0] == "group" and node[1] in LOOKAROUND
+    """True for nodes that match a position, not a character: anchors, \\b, lookarounds."""
+    return node[0] in ("anchor", "wordb") or node[0] == "group" and node[1] in LOOKAROUND
+
+
+# --------------------------------------------------------------------------
+# Regex writing: turns a parsed tree into a Vim very magic regex. The
+# converter writes every pattern as /\%#=1\v.../ (see ENGINE) because very
+# magic is closest to Oniguruma: ( ) | + ? { work without backslashes.
+#   e.g. tree of "0x[0-9a-fA-F]+" -> 0x[0-9a-fA-F]+
+#        tree of "a{2,}?"         -> a{-2,}
+#        tree of "(?<=\.)\w"      -> %(\.)@<=\w
+# --------------------------------------------------------------------------
+
+# Starts every pattern to pick Vim's backtracking regex engine (\%#=1) instead
+# of its default NFA engine. Grammars use long word lists and lookarounds
+# (e.g. the built-in function names), which the NFA engine is many times
+# slower at; on a 1,000 line RAScript file highlighting went from about 3.8s
+# to 0.3s, and long lines no longer lose highlighting
+ENGINE = r"\%#=1"
+
+# Maps a group kind -> the text that closes that group in Vim, e.g. "(?=" ->
+# ")@=". In Oniguruma the type is marked at the start of the group; in Vim
+# every group opens with %( and the type is marked after the closing ):
+#   (x)     capture group       -> %(x)
+#   (?:x)   non-capturing group -> %(x)
+#   (?>x)   atomic group        -> %(x)@>
+#   (?=x)   lookahead           -> %(x)@=
+#   (?!x)   negative lookahead  -> %(x)@!
+#   (?<=x)  lookbehind          -> %(x)@<=
+#   (?<!x)  negative lookbehind -> %(x)@<!
+# Capture groups become %( too: Vim never needs the captured text, the parser
+# only numbers them so the grammar's "captures" can refer to them
+GROUPS = {"(": ")", "(?:": ")", "(?>": ")@>", "(?=": ")@=", "(?!": ")@!", "(?<=": ")@<=", "(?<!": ")@<!"}
+
+# Maps an Oniguruma escape letter -> the Vim escape for the same set of
+# characters, e.g. "h" -> r"\x":
+#   \w  word character   -> \k   (Vim's \w is ASCII only; \k is a keyword
+#                                 character from syntax iskeyword, which
+#                                 includes non-ASCII letters)
+#   \s  whitespace       -> \s
+#   \d  digit 0-9        -> \d
+#   \h  hex digit        -> \x   (Vim's \h means something else: letter or _)
+ESC = {"w": r"\k", "W": r"\W", "s": r"\s", "S": r"\S", "d": r"\d", "D": r"\D", "h": r"\x", "H": r"\X"}
+
+# Maps a class escape letter -> the characters it stands for, written as
+# ranges so they can go inside Vim's [...]; Vim doesn't understand \w \d \s
+# inside brackets. e.g. [\w-] -> [0-9A-Za-z_\-]
+#   \w  letters, digits, _      \d  digits
+#   \s  whitespace (\d11 and \d12 are Vim's vertical tab and form feed)
+#   \h  hex digits
+CLASS_ESC = {"w": "0-9A-Za-z_", "d": "0-9", "s": r" \t\r\n\d11\d12", "h": "0-9A-Fa-f"}
+
+# Maps an invisible character -> how Vim writes it in a pattern, the reverse
+# of CONTROL, so the generated file never contains a raw tab or newline
+VIM_CONTROL = {"\t": r"\t", "\n": r"\n", "\r": r"\r"}
+
+# Word characters (what \w matches). Used two ways:
+#  - render(): these are the only ASCII characters that can be written bare in
+#    a Vim very magic (\v) pattern; every other one is special (= < > @ % {
+#    ...), so it gets a backslash
+#  - edge_is_word(): deciding whether \b is the start or end of a word
+WORD = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")
+
+
+def class_is_word(node):
+    """Whether a [...] class can match a word character; a negated class counts as not."""
+    _, negated, items = node
+    return not negated and any(i[1] in "wdh" if i[0] == "esc" else any(c in WORD for c in i[1:]) for i in items)
 
 
 def edge_is_word(node, at_end):
@@ -337,7 +360,7 @@ def edge_is_word(node, at_end):
     if kind == "esc":
         return node[1] in "wdh"
     if kind == "class":
-        return node[2]
+        return class_is_word(node)
     if kind == "seq":
         items = [x for x in node[1] if not zero_width(x)]
         return bool(items) and edge_is_word(items[-1 if at_end else 0], at_end)
@@ -346,21 +369,52 @@ def edge_is_word(node, at_end):
     return any(edge_is_word(c, at_end) for c in children(node))
 
 
-# --------------------------------------------------------------------------
-# Regex writing: turns a parsed tree back into a Vim very magic regex. The
-# converter writes every pattern as /\%#=1\v.../ (see ENGINE) because very
-# magic is closest to Oniguruma: ( ) | + ? { work without backslashes.
-#   e.g. tree of "0x[0-9a-fA-F]+" -> 0x[0-9a-fA-F]+
-#        tree of "a{2,}?"         -> a{-2,}
-#        tree of "(?<=\.)\w"      -> %(\.)@<=\w
-# --------------------------------------------------------------------------
+def word_boundaries(node):
+    r"""Picks a Vim word boundary for every \b in a tree.
 
-# Starts every pattern to pick Vim's backtracking regex engine (\%#=1) instead
-# of its default NFA engine. Grammars use long word lists and lookarounds
-# (e.g. the built-in function names), which the NFA engine is many times
-# slower at; on a 1,000 line RAScript file highlighting went from about 3.8s
-# to 0.3s, and long lines no longer lose highlighting
-ENGINE = r"\%#=1"
+    Vim has no \b, only < (a word starts here) and > (a word ends here). Each
+    \b becomes ("wordb", vim), choosing by what is next to it in its sequence:
+      \bif\b    -> <if>        word after the first, word before the last
+      x\b\.     -> x>\.       word before, punctuation after: a word ends
+      (a|\b)    -> %(<|>)      nothing next to it, so allow either
+    Inner sequences are done first, so their boundaries already count as zero
+    width when an outer \b looks inside them.
+    """
+    kind = node[0]
+    if kind in ("seq", "alt"):
+        items = [word_boundaries(x) for x in node[1]]
+        if kind == "seq":
+            for i, item in enumerate(items):
+                if item == ("wordb",):
+                    starts = i + 1 < len(items) and edge_is_word(items[i + 1], False)
+                    ends = i > 0 and edge_is_word(items[i - 1], True)
+                    items[i] = ("wordb", "<" if starts and not ends else ">" if ends and not starts else "%(<|>)")
+        return (kind, items)
+    if kind == "group":
+        return node[:2] + (word_boundaries(node[2]),) + node[3:]
+    if kind == "rep":
+        return (kind, word_boundaries(node[1])) + node[2:]
+    return node
+
+
+def render_class(node):
+    r"""Writes a [...] class node in Vim syntax.
+
+    \w \d \s \h expand through CLASS_ESC; ] ^ - \ get a backslash, because those
+    are the only characters special inside Vim's brackets:
+      [\w-]      -> [0-9A-Za-z_\-]
+      [^\s"]     -> [^ \t\r\n\d11\d12"]
+      [\.\]a-z^] -> [.\]a-z\^]
+    """
+    _, negated, items = node
+    parts = []
+    for item in items:
+        if item[0] == "esc":
+            parts.append(CLASS_ESC[item[1]])
+        else:
+            # ("range", "a", "z") -> "a-z", real tab -> "\t", "]" -> "\]"
+            parts.append("-".join(VIM_CONTROL.get(c, "\\" + c if c in "]^-\\" else c) for c in item[1:]))
+    return "[" + "^" * negated + "".join(parts) + "]"
 
 
 def quantifier(lo, hi, lazy):
@@ -386,8 +440,8 @@ def render(node):
     if kind == "alt":
         return "|".join(map(render, node[1]))
     if kind == "group":
-        # every group opens with %( (non-capturing); GROUPS gave the closer
-        return "%(" + render(node[2]) + node[1]
+        # every group opens with %( (non-capturing); GROUPS gives the closer
+        return "%(" + render(node[2]) + GROUPS[node[1]]
     if kind == "rep":
         return render(node[1]) + quantifier(*node[2:])
     if kind == "char":
@@ -398,7 +452,15 @@ def render(node):
         return VIM_CONTROL.get(c, "\\" + c)
     if kind == "esc":
         return ESC[node[1]]
-    # class, anchor and any already hold their Vim text
+    if kind == "class":
+        return render_class(node)
+    if kind == "anchor":
+        # Vim's ^ and $ are only anchors at the start and end of a pattern;
+        # \_^ and \_$ work anywhere in it, like Oniguruma's
+        return "\\_" + node[1]
+    if kind == "any":
+        return "."
+    # a \b, after word_boundaries picked its Vim text
     return node[1]
 
 
@@ -654,9 +716,11 @@ class Converter:
 
     @staticmethod
     def parse_rule(regex, label):
-        """parse() with the rule's location added to any error message."""
+        """parse() with the rule's location added to any error message, and
+        the Vim word boundaries picked."""
         try:
-            return parse(regex)
+            node, icase, ngroups = parse(regex)
+            return word_boundaries(node), icase, ngroups
         except ConvertError as e:
             raise ConvertError(f"{label}: {e} in {regex!r}") from None
 
@@ -688,7 +752,7 @@ class Converter:
         # unwrap groups that surround the entire pattern, noting capture numbers
         #   ((?:a|b))  -> groups 1 and the (?:) both wrap everything -> [1]
         whole_groups, n = [], node
-        while n[0] == "seq" and len(n[1]) == 1 or n[0] == "group" and n[1] == ")":
+        while n[0] == "seq" and len(n[1]) == 1 or n[0] == "group" and n[1] in ("(", "(?:"):
             if n[0] == "group" and n[3]:
                 whole_groups.append(n[3])
             n = n[1][0] if n[0] == "seq" else n[2]
