@@ -18,14 +18,11 @@
 # whitespace, including newlines and no-break spaces; Vim's \s only matches
 # space and tab (inside a class, \s is expanded to include \r and \n).
 
-import argparse
 import datetime
-import json
 import re
-import sys
 
 import tmgrammar
-from tmgrammar import SELF, ConvertError, LOOKAROUND, children, zero_width
+from tmgrammar import SELF, ConvertError, LOOKAROUND, capture_path, children, zero_width
 
 MAINTAINER = "Joshua Raphael"
 URL = "https://github.com/joshraphael/rascript-syntax"
@@ -263,14 +260,7 @@ def render_capture(root, target):
     iteration holding the group:
       (?:(\d)\.)+x  target 1 -> %(%(%(\d)\.)*)@<=\d%(\.x)@=
     """
-    path = set()
-
-    def find(node):
-        """Marks every node on the way from root down to the target group."""
-        hit = node[0] == "group" and node[3] == target or any(find(c) for c in children(node))
-        if hit:
-            path.add(id(node))
-        return hit
+    path = capture_path(root, target)
 
     def split(node, rest):
         """Returns (before, group, after) for the part of the regex in node.
@@ -310,8 +300,6 @@ def render_capture(root, target):
         before, group, after = split(child, rest)
         return ([] if hi == 0 else [(render(child) + quantifier(lo, hi, lazy), False)]) + before, group, after
 
-    if not find(root):
-        raise ConvertError(f"capture group {target} does not exist")
     before, group, after = split(root, "")
     # zero-width items at the end of the context (e.g. < in \b(\w+)) can stay
     # in front of the group instead of going in the lookbehind
@@ -356,18 +344,10 @@ SCOPE_MAP = {
 
 def scope_to_vim(scope):
     """Returns the Vim group for a scope, or None if no prefix is in SCOPE_MAP.
-
-    A scope can be several names separated by spaces; the last one is the most
-    specific, so it is tried first.
       "constant.numeric.decimal.rascript" -> "Number"
       "meta.something.rascript"           -> None
     """
-    for s in reversed((scope or "").split()):
-        parts = s.split(".")
-        for n in range(len(parts), 0, -1):
-            if ".".join(parts[:n]) in SCOPE_MAP:
-                return SCOPE_MAP[".".join(parts[:n])]
-    return None
+    return tmgrammar.scope_lookup(SCOPE_MAP, scope)
 
 
 def camel(key):
@@ -454,16 +434,7 @@ class Converter:
         rule's match then lists them in contains=.
         """
         node, icase, caps = word_boundaries(regex.tree), regex.icase, regex.captures
-        # unwrap groups that surround the entire pattern, noting capture numbers
-        #   ((?:a|b))  -> groups 1 and the (?:) both wrap everything -> [1]
-        whole_groups, n = [], node
-        while n[0] == "seq" and len(n[1]) == 1 or n[0] == "group" and n[1] in ("(", "(?:"):
-            if n[0] == "group" and n[3]:
-                whole_groups.append(n[3])
-            n = n[1][0] if n[0] == "seq" else n[2]
-        whole = name
-        for key in ["0"] + [str(i) for i in whole_groups]:
-            whole = caps.get(key, {}).get("name", whole)
+        whole_groups, whole = regex.whole_groups, regex.whole_scope(name)
         groups = []
         for key, cap in sorted(caps.items(), key=lambda kv: int(kv[0])):
             if key == "0" or not cap.get("name") or int(key) in whole_groups:
@@ -607,16 +578,8 @@ class Converter:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Convert a TextMate grammar into a Vim syntax file, written to stdout.")
-    parser.add_argument("grammar", help="TextMate grammar to convert (.tmLanguage.json)")
-    args = parser.parse_args()
-    with open(args.grammar, encoding="utf-8") as f:
-        grammar = json.load(f)
-    try:
-        result = Converter(tmgrammar.Grammar(grammar)).convert()
-    except ConvertError as e:
-        sys.exit(f"error: {e}")
-    sys.stdout.write(result)
+    tmgrammar.main("Convert a TextMate grammar into a Vim syntax file, written to stdout.",
+                   lambda grammar: Converter(grammar).convert())
 
 
 if __name__ == "__main__":
