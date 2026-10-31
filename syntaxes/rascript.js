@@ -188,6 +188,27 @@ export default function(hljs) {
             relevance: 0
         }
     ];
+    const LAMBDAS = [
+        // lambda with parameters in parentheses: (a, b) => ... or (a, b) { ... }. The ( and the names up to ) => or ) { must be on one line
+        {
+            begin: /\((?=(?:[\p{L}\p{M}\p{N}\p{Pc}]|[\t ,])*\)[\t ]*(?:=>|\{))/,
+            end: /\)/,
+            contains: [
+                {
+                    scope: 'params',
+                    match: /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(?!\d)[\p{L}\p{M}\p{N}\p{Pc}]+/,
+                    relevance: 0
+                }
+            ],
+            relevance: 0
+        },
+        // lambda with one parameter and no parentheses: v => ...
+        {
+            scope: 'params',
+            match: /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(?!\d)[\p{L}\p{M}\p{N}\p{Pc}]+(?=[\t ]*=>)/,
+            relevance: 0
+        }
+    ];
     const VARIABLE_LANGUAGE_THIS = [
         {
             scope: 'variable.language',
@@ -207,6 +228,7 @@ export default function(hljs) {
         ...NUMBERS,
         ...FUNCTION_NAMES,
         ...CLASS_DEFINITIONS,
+        ...LAMBDAS,
         ...VARIABLE_LANGUAGE_THIS,
         {
             scope: 'operator',
