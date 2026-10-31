@@ -209,6 +209,33 @@ export default function(hljs) {
             relevance: 0
         }
     ];
+    // matched ( ) pairs, so a region containing them can't end on their ) or on a , inside them. The contents are highlighted as usual
+    const PARENTHESES = [
+        {
+            begin: /\(/,
+            end: /\)/,
+            contains: STATEMENTS,
+            relevance: 0
+        }
+    ];
+    // matched { } pairs, so a region containing them can't end on a ) or , inside them. The contents are highlighted as usual
+    const BLOCKS = [
+        {
+            begin: /\{/,
+            end: /\}/,
+            contains: STATEMENTS,
+            relevance: 0
+        }
+    ];
+    // matched [ ] pairs, so a region containing them can't end on a ) or , inside them. The contents are highlighted as usual
+    const BRACKETS = [
+        {
+            begin: /\[/,
+            end: /\]/,
+            contains: STATEMENTS,
+            relevance: 0
+        }
+    ];
     const VARIABLE_LANGUAGE_THIS = [
         {
             scope: 'variable.language',
@@ -229,6 +256,9 @@ export default function(hljs) {
         ...FUNCTION_NAMES,
         ...CLASS_DEFINITIONS,
         ...LAMBDAS,
+        ...PARENTHESES,
+        ...BLOCKS,
+        ...BRACKETS,
         ...VARIABLE_LANGUAGE_THIS,
         {
             scope: 'operator',
