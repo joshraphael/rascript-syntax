@@ -243,6 +243,22 @@ export default function(hljs) {
             relevance: 0
         }
     ];
+    // left hand side of variable assignment, but not of an == comparison
+    const VARIABLE_ASSIGNMENT = [
+        {
+            scope: 'variable',
+            match: /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(?!\d)[\p{L}\p{M}\p{N}\p{Pc}]+(?=[\t ]*=(?!=))/,
+            relevance: 0
+        }
+    ];
+    // different variables around the file being used, not assignment
+    const VARIABLE_OTHER = [
+        {
+            scope: 'variable',
+            match: /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(?!\d)[\p{L}\p{M}\p{N}\p{Pc}]+/,
+            relevance: 0
+        }
+    ];
 
     STATEMENTS.push(
         // header before comments, since both start with //
@@ -260,21 +276,8 @@ export default function(hljs) {
         ...BLOCKS,
         ...BRACKETS,
         ...VARIABLE_LANGUAGE_THIS,
-        {
-            scope: 'operator',
-            begin: /(\|\||&&|==|!=|>=|<=|=>)/,
-            relevance: 0
-        },
-        {
-            scope: 'operator',
-            match: /[\+\-\*\/%\^&\^~><!\|]/,
-            relevance: 0
-        },      
-        {
-            scope: 'variable',
-            begin: /[a-zA-Z_][\w]*/,
-            relevance: 0
-        }
+        ...VARIABLE_ASSIGNMENT,
+        ...VARIABLE_OTHER
     );
     CALL_ARGUMENTS.push(...STATEMENTS);
     return {
