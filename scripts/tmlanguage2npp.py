@@ -10,7 +10,7 @@
 #   contentName (the plugin colors a region's begin, body and end alike)
 #   lookbehinds that can match text of different lengths, e.g. (?<=a|bc) or
 #     (?<!a+): Boost only allows fixed-length lookbehinds
-#   scopes missing from SCOPE_STYLES, except meta.* scopes, which get no style
+#   scopes missing from SCOPE_STYLES
 #   comments containing --, which an XML comment can't hold
 
 import tmgrammar
@@ -117,6 +117,7 @@ SCOPE_STYLES = {
     "entity.name.class": "CLASS-NAME",
     "keyword.function": "FUNCTION",
     "entity.name.function": "FUNCTION-NAME",
+    "entity.name.function.call": "FUNCTION-CALLS",
     "string.quoted.double": "STRINGS",
     "comment.line.double-slash": "LINE-COMMENTS", "punctuation.definition.comment.single": "LINE-COMMENTS",
     "comment.block": "BLOCK-COMMENTS", "punctuation.definition.comment.block": "BLOCK-COMMENTS",
@@ -130,13 +131,6 @@ SCOPE_STYLES = {
     "variable.parameter": "PARAMETERS",
     "support.function": "BUILTIN-FUNCTIONS",
     "variable.parameter.function-call": "NAMED-ARGUMENTS",
-}
-
-# Used instead of SCOPE_STYLES for the captures of a rule named
-# meta.function-call: a function name there is a call, everywhere else a
-# definition (FUNCTION-NAME)
-CALL_STYLES = {
-    "entity.name.function": "FUNCTION-CALLS",
 }
 
 # style name -> (light ID, dark ID)
@@ -167,15 +161,11 @@ class Converter:
     def __init__(self, grammar):
         self.grammar = grammar
 
-    def styles(self, scope, label, call=False):
+    def styles(self, scope, label):
         """A scope -> its lightStyle/darkStyle attributes, or "" for no style."""
-        if not scope:
-            return ""
-        style = call and tmgrammar.scope_lookup(CALL_STYLES, scope) or tmgrammar.scope_lookup(SCOPE_STYLES, scope)
+        style = tmgrammar.lookup(SCOPE_STYLES, scope, label, "Notepad++ style")
         if style is None:
-            if all(s.startswith("meta.") for s in scope.split()):
-                return ""
-            raise ConvertError(f"{label}: no Notepad++ style for scope {scope!r}")
+            return ""
         light, dark = STYLE_IDS[style]
         return attr("lightStyle", str(light)) + attr("darkStyle", str(dark))
 
@@ -210,10 +200,9 @@ class Converter:
             tag += attr("begin", self.regex(node.begin)) + attr("end", self.regex(node.end))
         tag += self.styles(node.name, node.label)
         inner = []
-        call = bool(node.name and tmgrammar.scope_lookup({"meta.function-call": True}, node.name))
         for key, element in (("captures", "Capture"), ("beginCaptures", "BeginCapture"), ("endCaptures", "EndCapture")):
             for index, cap in sorted(node.raw.get(key, {}).items(), key=lambda kv: int(kv[0])):
-                style = self.styles(cap.get("name"), f"{node.label} {key} {index}", call)
+                style = self.styles(cap.get("name"), f"{node.label} {key} {index}")
                 if style:
                     inner.append(f"{pad}    <{element}{attr('index', index)}{style} />")
         if node.kind == "include":
