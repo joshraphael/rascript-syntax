@@ -203,11 +203,10 @@ export default function(hljs) {
     const FUNCTION_NAMES = [
         // a function call from its name to the closing ), so arguments can span lines. Named arguments (title = ...) are scoped as parameters of the call. This rule is for built-ins; a built-in name after a . is a method call (this.prev()), left to the next rule
         {
-            begin: [/(?<!\.)(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(byte|word|tbyte|dword|bit0|bit1|bit2|bit3|bit4|bit5|bit6|bit7|bit|low4|high4|bitcount|word_be|tbyte_be|dword_be|float|float_be|mbf32|mbf32_le|double32|double32_be|prev|prior|bcd|identity_transform|ascii_string_equals|unicode_string_equals|remembered|repeated|once|tally|deduct|never|unless|measured|trigger_when|disable_when|always_true|always_false|format|substring|length|range|array_push|array_pop|array_map|array_contains|array_reduce|array_filter|field_map|dictionary_contains_key|any_of|all_of|none_of|sum_of|tally_of|max_of|assert|achievement|achievement_set|rich_presence_display|rich_presence_value|rich_presence_lookup|rich_presence_ascii_string_lookup|rich_presence_macro|rich_presence_conditional_display|leaderboard|__ornext)(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))/, /[^\S\r\n]*\(/],
+            begin: [/(?<!\.)(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(?:byte|word|tbyte|dword|bit0|bit1|bit2|bit3|bit4|bit5|bit6|bit7|bit|low4|high4|bitcount|word_be|tbyte_be|dword_be|float|float_be|mbf32|mbf32_le|double32|double32_be|prev|prior|bcd|identity_transform|ascii_string_equals|unicode_string_equals|remembered|repeated|once|tally|deduct|never|unless|measured|trigger_when|disable_when|always_true|always_false|format|substring|length|range|array_push|array_pop|array_map|array_contains|array_reduce|array_filter|field_map|dictionary_contains_key|any_of|all_of|none_of|sum_of|tally_of|max_of|assert|achievement|achievement_set|rich_presence_display|rich_presence_value|rich_presence_lookup|rich_presence_ascii_string_lookup|rich_presence_macro|rich_presence_conditional_display|leaderboard|__ornext)/, /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))[^\S\r\n]*\(/],
             beginScope: { 1: 'built_in' },
             end: /\)/,
             contains: CALL_ARGUMENTS,
-            // built-in calls help highlight.js auto detect RAScript
             relevance: 10
         },
         // a call to any other function, including methods named like built-ins (this.prev()). A separate rule from the built-ins, so neither needs to exclude the other
@@ -220,8 +219,8 @@ export default function(hljs) {
         },
         // any other name at the end of a line, built-ins included, which is a call if its ( is on a later line. The grammar can't see the next line when the name is scoped, so the name stays a variable, but the arguments are scoped as a call's. Reserved words are left to their own rules (return (x), this)
         {
-            begin: [/(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(?!(?:if|else|for|in|return|function|class|this|true|false)(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}])))/, /(?!\d)[\p{L}\p{M}\p{N}\p{Pc}]+/, /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(?=[\t ]*(?:\/\/.*)?$)/],
-            beginScope: { 2: 'variable' },
+            begin: /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(?!(?:if|else|for|in|return|function|class|this|true|false)(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}])))(?!\d)[\p{L}\p{M}\p{N}\p{Pc}]+(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(?=[\t ]*(?:\/\/.*)?$)/,
+            beginScope: 'variable',
             end: /(?=[^\s(\/])/,
             contains: [
                 ...COMMENTS,
