@@ -8,8 +8,7 @@ Version: _GRAMMAR_VERSION_
 
 export default function(hljs) {
     // the top-level modes, like the TextMate grammar's statements, so a mode can
-    // include them the way a TextMate rule includes $self. Filled in at the end,
-    // once every mode is defined
+    // include them the way a TextMate rule includes $self
     const STATEMENTS = [];
 
     // The modes below mirror the TextMate grammar's rules. Their regexes are the
@@ -17,30 +16,31 @@ export default function(hljs) {
     // lookaround on it (JavaScript's are ASCII only), and \h is [0-9a-fA-F].
     // highlight.js compiles them with the m and u flags (unicodeRegex). A TextMate
     // capture is a part of a multi-part match here, with its own scope
-    const HEADER = [
+    const CONTROLS = [
+        // if with its condition in parentheses: the condition is its own region so if (x) { isn't read as the lambda (x) { ... }
         {
-            scope: { 1: 'comment', 2: 'keyword', 3: 'comment', 4: 'number' },
-            match: [/^\/\/[\t ]*/, /#ID/, /[\t ]*=[\t ]*/, /\d+$/],
+            begin: [/(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))if/, /[\t ]*\(/],
+            beginScope: { 1: 'keyword' },
+            end: /\)/,
+            contains: STATEMENTS,
             relevance: 0
         },
-        // only the RATools release versions listed in https://github.com/Jamiras/RATools/blob/master/Source/Data/Version.cs (0.73-0.79, 1.0-1.4, 1.3.1, 1.4.1, 1.4.2), optionally padded with .0 up to the 4 parts RATools parses (1.0.0.0 is 1.0).
+        // for loop header: in is only a keyword after for and the loop variable, elsewhere it is a normal name (in = 1, function in(...))
         {
-            scope: { 1: 'comment', 2: 'keyword', 3: 'comment', 4: 'number' },
-            match: [/^\/\/[\t ]*/, /#MinimumVersion/, /[\t ]*=[\t ]*/, /(?:(?:0\.7[3-9]|1\.[0-4])(?:\.0){0,2}|(?:1\.3\.1|1\.4\.[12])(?:\.0)?)$/],
+            scope: { 1: 'keyword', 3: 'variable', 5: 'keyword' },
+            match: [/(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))for/, /[\t ]+/, /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(?!\d)[\p{L}\p{M}\p{N}\p{Pc}]+/, /[\t ]+/, /in(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))/],
+            relevance: 0
+        },
+        {
+            scope: 'keyword',
+            match: /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(if|else|for|return)(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))/,
             relevance: 0
         }
     ];
-    const COMMENTS = [
+    const BOOLEANS = [
         {
-            scope: 'comment',
-            begin: /\/\*/,
-            end: /\*\//,
-            relevance: 0
-        },
-        {
-            scope: 'comment',
-            begin: /\/\//,
-            end: /$/,
+            scope: 'literal',
+            match: /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(?:true|false)(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))/,
             relevance: 0
         }
     ];
@@ -71,59 +71,6 @@ export default function(hljs) {
             relevance: 0
         }
     ];
-    const CONTROLS = [
-        // if with its condition in parentheses: the condition is its own region so if (x) { isn't read as the lambda (x) { ... }
-        {
-            begin: [/(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))if/, /[\t ]*\(/],
-            beginScope: { 1: 'keyword' },
-            end: /\)/,
-            contains: STATEMENTS,
-            relevance: 0
-        },
-        // for loop header: in is only a keyword after for and the loop variable, elsewhere it is a normal name (in = 1, function in(...))
-        {
-            scope: { 1: 'keyword', 3: 'variable', 5: 'keyword' },
-            match: [/(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))for/, /[\t ]+/, /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(?!\d)[\p{L}\p{M}\p{N}\p{Pc}]+/, /[\t ]+/, /in(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))/],
-            relevance: 0
-        },
-        {
-            scope: 'keyword',
-            match: /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(if|else|for|return)(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))/,
-            relevance: 0
-        }
-    ];
-    // a function definition from the function keyword to the ) closing its parameter list, so parameters can span lines. The keyword, name and ( must be on the same line
-    const FUNCTION_DEFINITIONS = [
-        {
-            begin: [/(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))function(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))/, /[^\S\r\n]*/, /[\p{L}\p{M}\p{N}\p{Pc}]+/, /[^\S\r\n]*\(/],
-            beginScope: { 1: 'keyword', 3: 'title.function' },
-            end: /\)/,
-            contains: [
-                ...COMMENTS,
-                // default value: everything after = up to the next , or ) is highlighted as usual. Parentheses, blocks and brackets in the value consume their own , and )
-                {
-                    begin: /=(?!=)/,
-                    end: /(?=[,)])/,
-                    contains: STATEMENTS,
-                    relevance: 0
-                },
-                // parameter name
-                {
-                    scope: 'params',
-                    match: /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(?!\d)[\p{L}\p{M}\p{N}\p{Pc}]+/,
-                    relevance: 0
-                }
-            ],
-            relevance: 0
-        }
-    ];
-    const BOOLEANS = [
-        {
-            scope: 'literal',
-            match: /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(?:true|false)(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))/,
-            relevance: 0
-        }
-    ];
     const NUMBERS = [
         // whole numbers and decimals like 19.25, scoped as one number including the dot
         {
@@ -137,54 +84,12 @@ export default function(hljs) {
             relevance: 0
         }
     ];
-    // the inside of a function call's parentheses. Filled in with STATEMENTS at the end, like TextMate's include of $self
+    // the inside of a function call's parentheses
     const CALL_ARGUMENTS = [
         // named argument: the name in name = value, but not in name == value or the lambda name => value
         {
             scope: 'attr',
             match: /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(?!\d)[\p{L}\p{M}\p{N}\p{Pc}]+(?=[\t ]*=(?![=>]))/,
-            relevance: 0
-        }
-    ];
-    const FUNCTION_NAMES = [
-        // a function call from its name to the closing ), so arguments can span lines. Named arguments (title = ...) are scoped as parameters of the call. This rule is for built-ins; a built-in name after a . is a method call (this.prev()), left to the next rule
-        {
-            begin: [/(?<!\.)(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(byte|word|tbyte|dword|bit0|bit1|bit2|bit3|bit4|bit5|bit6|bit7|bit|low4|high4|bitcount|word_be|tbyte_be|dword_be|float|float_be|mbf32|mbf32_le|double32|double32_be|prev|prior|bcd|identity_transform|ascii_string_equals|unicode_string_equals|remembered|repeated|once|tally|deduct|never|unless|measured|trigger_when|disable_when|always_true|always_false|format|substring|length|range|array_push|array_pop|array_map|array_contains|array_reduce|array_filter|field_map|dictionary_contains_key|any_of|all_of|none_of|sum_of|tally_of|max_of|assert|achievement|achievement_set|rich_presence_display|rich_presence_value|rich_presence_lookup|rich_presence_ascii_string_lookup|rich_presence_macro|rich_presence_conditional_display|leaderboard|__ornext)(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))/, /[^\S\r\n]*\(/],
-            beginScope: { 1: 'built_in' },
-            end: /\)/,
-            contains: CALL_ARGUMENTS,
-            // built-in calls help highlight.js auto detect RAScript
-            relevance: 10
-        },
-        // a call to any other function, including methods named like built-ins (this.prev()). A separate rule from the built-ins, so neither needs to exclude the other
-        {
-            begin: [/(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))[\p{L}\p{M}\p{N}\p{Pc}]+/, /[^\S\r\n]*\(/],
-            beginScope: { 1: 'title.function.invoke' },
-            end: /\)/,
-            contains: CALL_ARGUMENTS,
-            relevance: 0
-        },
-        // any other name at the end of a line, built-ins included, which is a call if its ( is on a later line. The grammar can't see the next line when the name is scoped, so the name stays a variable, but the arguments are scoped as a call's. Reserved words are left to their own rules (return (x), this)
-        {
-            begin: [/(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(?!(?:if|else|for|in|return|function|class|this|true|false)(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}])))/, /(?!\d)[\p{L}\p{M}\p{N}\p{Pc}]+/, /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(?=[\t ]*(?:\/\/.*)?$)/],
-            beginScope: { 2: 'variable' },
-            end: /(?=[^\s(\/])/,
-            contains: [
-                ...COMMENTS,
-                {
-                    begin: /\(/,
-                    end: /\)/,
-                    contains: CALL_ARGUMENTS,
-                    relevance: 0
-                }
-            ],
-            relevance: 0
-        }
-    ];
-    const CLASS_DEFINITIONS = [
-        {
-            scope: { 1: 'keyword', 3: 'title.class' },
-            match: [/(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))class(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))/, /[\t ]*/, /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(?!\d)[\p{L}\p{M}\p{N}\p{Pc}]+/],
             relevance: 0
         }
     ];
@@ -236,6 +141,100 @@ export default function(hljs) {
             relevance: 0
         }
     ];
+    const CLASS_DEFINITIONS = [
+        {
+            scope: { 1: 'keyword', 3: 'title.class' },
+            match: [/(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))class(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))/, /[\t ]*/, /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(?!\d)[\p{L}\p{M}\p{N}\p{Pc}]+/],
+            relevance: 0
+        }
+    ];
+    const HEADER = [
+        {
+            scope: { 1: 'comment', 2: 'keyword', 3: 'comment', 4: 'number' },
+            match: [/^\/\/[\t ]*/, /#ID/, /[\t ]*=[\t ]*/, /\d+$/],
+            relevance: 0
+        },
+        // only the RATools release versions listed in https://github.com/Jamiras/RATools/blob/master/Source/Data/Version.cs (0.73-0.79, 1.0-1.4, 1.3.1, 1.4.1, 1.4.2), optionally padded with .0 up to the 4 parts RATools parses (1.0.0.0 is 1.0).
+        {
+            scope: { 1: 'comment', 2: 'keyword', 3: 'comment', 4: 'number' },
+            match: [/^\/\/[\t ]*/, /#MinimumVersion/, /[\t ]*=[\t ]*/, /(?:(?:0\.7[3-9]|1\.[0-4])(?:\.0){0,2}|(?:1\.3\.1|1\.4\.[12])(?:\.0)?)$/],
+            relevance: 0
+        }
+    ];
+    const COMMENTS = [
+        {
+            scope: 'comment',
+            begin: /\/\*/,
+            end: /\*\//,
+            relevance: 0
+        },
+        {
+            scope: 'comment',
+            begin: /\/\//,
+            end: /$/,
+            relevance: 0
+        }
+    ];
+    // a function definition from the function keyword to the ) closing its parameter list, so parameters can span lines. The keyword, name and ( must be on the same line
+    const FUNCTION_DEFINITIONS = [
+        {
+            begin: [/(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))function(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))/, /[^\S\r\n]*/, /[\p{L}\p{M}\p{N}\p{Pc}]+/, /[^\S\r\n]*\(/],
+            beginScope: { 1: 'keyword', 3: 'title.function' },
+            end: /\)/,
+            contains: [
+                ...COMMENTS,
+                // default value: everything after = up to the next , or ) is highlighted as usual. Parentheses, blocks and brackets in the value consume their own , and )
+                {
+                    begin: /=(?!=)/,
+                    end: /(?=[,)])/,
+                    contains: STATEMENTS,
+                    relevance: 0
+                },
+                // parameter name
+                {
+                    scope: 'params',
+                    match: /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(?!\d)[\p{L}\p{M}\p{N}\p{Pc}]+/,
+                    relevance: 0
+                }
+            ],
+            relevance: 0
+        }
+    ];
+    const FUNCTION_NAMES = [
+        // a function call from its name to the closing ), so arguments can span lines. Named arguments (title = ...) are scoped as parameters of the call. This rule is for built-ins; a built-in name after a . is a method call (this.prev()), left to the next rule
+        {
+            begin: [/(?<!\.)(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(byte|word|tbyte|dword|bit0|bit1|bit2|bit3|bit4|bit5|bit6|bit7|bit|low4|high4|bitcount|word_be|tbyte_be|dword_be|float|float_be|mbf32|mbf32_le|double32|double32_be|prev|prior|bcd|identity_transform|ascii_string_equals|unicode_string_equals|remembered|repeated|once|tally|deduct|never|unless|measured|trigger_when|disable_when|always_true|always_false|format|substring|length|range|array_push|array_pop|array_map|array_contains|array_reduce|array_filter|field_map|dictionary_contains_key|any_of|all_of|none_of|sum_of|tally_of|max_of|assert|achievement|achievement_set|rich_presence_display|rich_presence_value|rich_presence_lookup|rich_presence_ascii_string_lookup|rich_presence_macro|rich_presence_conditional_display|leaderboard|__ornext)(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))/, /[^\S\r\n]*\(/],
+            beginScope: { 1: 'built_in' },
+            end: /\)/,
+            contains: CALL_ARGUMENTS,
+            // built-in calls help highlight.js auto detect RAScript
+            relevance: 10
+        },
+        // a call to any other function, including methods named like built-ins (this.prev()). A separate rule from the built-ins, so neither needs to exclude the other
+        {
+            begin: [/(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))[\p{L}\p{M}\p{N}\p{Pc}]+/, /[^\S\r\n]*\(/],
+            beginScope: { 1: 'title.function.invoke' },
+            end: /\)/,
+            contains: CALL_ARGUMENTS,
+            relevance: 0
+        },
+        // any other name at the end of a line, built-ins included, which is a call if its ( is on a later line. The grammar can't see the next line when the name is scoped, so the name stays a variable, but the arguments are scoped as a call's. Reserved words are left to their own rules (return (x), this)
+        {
+            begin: [/(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(?!(?:if|else|for|in|return|function|class|this|true|false)(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}])))/, /(?!\d)[\p{L}\p{M}\p{N}\p{Pc}]+/, /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(?=[\t ]*(?:\/\/.*)?$)/],
+            beginScope: { 2: 'variable' },
+            end: /(?=[^\s(\/])/,
+            contains: [
+                ...COMMENTS,
+                {
+                    begin: /\(/,
+                    end: /\)/,
+                    contains: CALL_ARGUMENTS,
+                    relevance: 0
+                }
+            ],
+            relevance: 0
+        }
+    ];
     const VARIABLE_LANGUAGE_THIS = [
         {
             scope: 'variable.language',
@@ -260,8 +259,10 @@ export default function(hljs) {
         }
     ];
 
+    // filled in last, once every mode is defined: STATEMENTS, then each list
+    // that includes it
     STATEMENTS.push(
-        // header before comments, since both start with //
+        // header before comments, since both start with //. These come first because tmlanguage2vim.py gives a rule its Vim priority from where it is first included, and function-definitions also includes #comments
         ...HEADER,
         ...COMMENTS,
         ...CONTROLS,
