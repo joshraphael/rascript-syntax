@@ -68,43 +68,85 @@ def check_lookbehinds(node, label):
 
 
 # --------------------------------------------------------------------------
-# Styles: maps a TextMate scope -> the Notepad++ style IDs for the light and
-# dark themes. The longest prefix that matches wins (see scope_lookup), e.g.
-# "variable.other.assignment.rascript" -> (50, 51), not variable.other's (1, 2).
+# Styles: each Notepad++ style is a light and a dark WordsStyle with its own
+# ID and color (the plugin picks one of the two for the current theme), and
+# each TextMate scope maps to one style by name. The longest scope prefix that
+# matches wins (see scope_lookup), e.g. "variable.other.assignment.rascript" ->
+# VARIABLE-ASSIGNMENT, not variable.other's VARIABLES.
 # --------------------------------------------------------------------------
 
+# (name, light ID, light color, dark ID, dark color), written in this order.
+# The light names get LIGHT- in front, the dark ones DARK-. IDs 32-39 are
+# reserved by Scintilla (STYLE_DEFAULT, STYLE_LINENUMBER, ...)
+STYLES = [
+    ("VARIABLES",                    1, "001080",  2, "9CDCFE"),
+    ("CONTROL",                      3, "B5200D",  4, "C586C0"),
+    ("THIS",                         5, "0F4A85",  6, "569CD6"),
+    ("BOOLEANS",                     7, "0F4A85",  8, "569CD6"),
+    ("DECIMALS",                     9, "096D48", 10, "B5CEA8"),
+    ("HEXADECIMALS",                11, "096D48", 12, "B5CEA8"),
+    ("CLASS",                       13, "0F4A85", 14, "569CD6"),
+    ("CLASS-NAME",                  15, "185E73", 16, "4EC9B0"),
+    ("FUNCTION",                    17, "0F4A85", 18, "569CD6"),
+    ("FUNCTION-CALLS",              19, "5E2CBC", 20, "DCDCAA"),
+    ("FUNCTION-NAME",               21, "5E2CBC", 22, "DCDCAA"),
+    ("STRINGS",                     23, "0F4A85", 24, "CE9178"),
+    ("LINE-COMMENTS",               25, "515151", 26, "6A9955"),
+    ("BLOCK-COMMENTS",              27, "515151", 28, "6A9955"),
+    ("HEADER-ID-KEY",               29, "0F4A85", 30, "569CD6"),
+    ("HEADER-ID-VALUE",             40, "096D48", 41, "B5CEA8"),
+    ("HEADER-MINIMUMVERSION-KEY",   42, "0F4A85", 43, "569CD6"),
+    ("HEADER-MINIMUMVERSION-VALUE", 44, "096D48", 45, "B5CEA8"),
+    ("STRING-PLACEHOLDER",          46, "0F4A85", 47, "569CD6"),
+    ("STRING-ESCAPE",               48, "EE0000", 49, "D7BA7D"),
+    ("VARIABLE-ASSIGNMENT",         50, "001080", 51, "9CDCFE"),
+    ("PARAMETERS",                  52, "001080", 53, "9CDCFE"),
+    ("BUILTIN-FUNCTIONS",           54, "5E2CBC", 55, "DCDCAA"),
+    ("NAMED-ARGUMENTS",             56, "001080", 57, "9CDCFE"),
+]
+RESERVED = range(32, 40)
+
 SCOPE_STYLES = {
-    "variable.other": (1, 2),
-    "keyword.control": (3, 4),
-    "variable.language.this": (5, 6),
-    "constant.language.boolean": (7, 8),
-    "constant.numeric.decimal": (9, 10),
-    "constant.numeric.hexadecimal": (11, 12),
-    "keyword.class": (13, 14),
-    "entity.name.class": (15, 16),
-    "keyword.function": (17, 18),
-    "entity.name.function": (21, 22),
-    "string.quoted.double": (23, 24),
-    "comment.line.double-slash": (25, 26), "punctuation.definition.comment.single": (25, 26),
-    "comment.block": (27, 28), "punctuation.definition.comment.block": (27, 28),
-    "keyword.other.id": (29, 30),
-    "constant.numeric.id": (40, 41),
-    "keyword.other.version": (42, 43),
-    "constant.numeric.version": (44, 45),
-    "punctuation.definition.template-expression": (46, 47),
-    "constant.character.escape": (48, 49),
-    "variable.other.assignment": (50, 51),
-    "variable.parameter": (52, 53),
-    "support.function": (54, 55),
-    "variable.parameter.function-call": (56, 57),
+    "variable.other": "VARIABLES",
+    "keyword.control": "CONTROL",
+    "variable.language.this": "THIS",
+    "constant.language.boolean": "BOOLEANS",
+    "constant.numeric.decimal": "DECIMALS",
+    "constant.numeric.hexadecimal": "HEXADECIMALS",
+    "keyword.class": "CLASS",
+    "entity.name.class": "CLASS-NAME",
+    "keyword.function": "FUNCTION",
+    "entity.name.function": "FUNCTION-NAME",
+    "string.quoted.double": "STRINGS",
+    "comment.line.double-slash": "LINE-COMMENTS", "punctuation.definition.comment.single": "LINE-COMMENTS",
+    "comment.block": "BLOCK-COMMENTS", "punctuation.definition.comment.block": "BLOCK-COMMENTS",
+    "keyword.other.id": "HEADER-ID-KEY",
+    "constant.numeric.id": "HEADER-ID-VALUE",
+    "keyword.other.version": "HEADER-MINIMUMVERSION-KEY",
+    "constant.numeric.version": "HEADER-MINIMUMVERSION-VALUE",
+    "punctuation.definition.template-expression": "STRING-PLACEHOLDER",
+    "constant.character.escape": "STRING-ESCAPE",
+    "variable.other.assignment": "VARIABLE-ASSIGNMENT",
+    "variable.parameter": "PARAMETERS",
+    "support.function": "BUILTIN-FUNCTIONS",
+    "variable.parameter.function-call": "NAMED-ARGUMENTS",
 }
 
 # Used instead of SCOPE_STYLES for the captures of a rule named
 # meta.function-call: a function name there is a call, everywhere else a
-# definition (FUNCTION-CALLS 19/20 vs FUNCTION-NAME 21/22)
+# definition (FUNCTION-NAME)
 CALL_STYLES = {
-    "entity.name.function": (19, 20),
+    "entity.name.function": "FUNCTION-CALLS",
 }
+
+# style name -> (light ID, dark ID)
+STYLE_IDS = {name: (light, dark) for name, light, _, dark, _ in STYLES}
+
+# The language as the plugin knows it: Notepad++ shows the name in its
+# Language menu, and the plugin's lexer and the <RAScript> element it reads
+# use the same name
+LANGUAGE = "RAScript"
+EXTENSION = "rascript"
 
 
 # --------------------------------------------------------------------------
@@ -129,12 +171,13 @@ class Converter:
         """A scope -> its lightStyle/darkStyle attributes, or "" for no style."""
         if not scope:
             return ""
-        ids = call and tmgrammar.scope_lookup(CALL_STYLES, scope) or tmgrammar.scope_lookup(SCOPE_STYLES, scope)
-        if ids is None:
+        style = call and tmgrammar.scope_lookup(CALL_STYLES, scope) or tmgrammar.scope_lookup(SCOPE_STYLES, scope)
+        if style is None:
             if all(s.startswith("meta.") for s in scope.split()):
                 return ""
             raise ConvertError(f"{label}: no Notepad++ style for scope {scope!r}")
-        return attr("lightStyle", str(ids[0])) + attr("darkStyle", str(ids[1]))
+        light, dark = STYLE_IDS[style]
+        return attr("lightStyle", str(light)) + attr("darkStyle", str(dark))
 
     @staticmethod
     def regex(regex):
@@ -182,15 +225,42 @@ class Converter:
         else:
             out.append(pad + tag + " />")
 
+    @staticmethod
+    def lexer_styles():
+        """The <LexerStyles> lines: a light and a dark WordsStyle per style, a
+        blank line between styles."""
+        out, past_reserved = [], False
+        for name, light, light_color, dark, dark_color in STYLES:
+            if light in RESERVED or dark in RESERVED:
+                raise ConvertError(f"style {name}: style IDs 32-39 are reserved by Scintilla")
+            if out:
+                out.append("")
+            # the note goes before the first style after the gap
+            if light > RESERVED[-1] and not past_reserved:
+                out.append("            <!-- styleIDs 32-39 are reserved by Scintilla, do not use -->")
+                past_reserved = True
+            for mode, i, color in (("LIGHT", light, light_color), ("DARK", dark, dark_color)):
+                out.append(f"            <WordsStyle{attr('name', f'{mode}-{name}')}{attr('styleID', str(i))}{attr('fgColor', color)} />")
+        return out
+
     def convert(self):
+        out = ['<NotepadPlus version="2">',
+               "    <Languages>",
+               f'        <Language{attr("name", LANGUAGE)}{attr("ext", EXTENSION)} commentLine="" commentStart="" commentEnd="">',
+               "        </Language>",
+               "    </Languages>",
+               "    <LexerStyles>",
+               f'        <LexerType{attr("name", LANGUAGE)}{attr("desc", LANGUAGE + " file")} ext="" excluded="no">']
+        out += self.lexer_styles()
+        out += ["        </LexerType>", "    </LexerStyles>"]
         version = self.grammar.raw.get("version")
-        out = ["    <RAScript" + (attr("version", version) if version else "") + ">"]
+        out.append("    <RAScript" + (attr("version", version) if version else "") + ">")
         for p in self.grammar.patterns.patterns:
             self.write(p, 2, out)
         out.append("        <Repository>")
         for key, entry in self.grammar.repository.items():
             self.write(entry, 3, out, key)
-        out += ["        </Repository>", "    </RAScript>"]
+        out += ["        </Repository>", "    </RAScript>", "</NotepadPlus>"]
         return "\n".join(out) + "\n"
 
 
