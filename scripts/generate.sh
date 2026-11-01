@@ -1,8 +1,10 @@
 #!/bin/bash
 
+set -euo pipefail
+
 export VERSION="$(git describe --always --dirty)"
 
-if [[ ${GITHUB_REF_NAME} != "" ]]; then
+if [[ ${GITHUB_REF_NAME:-} != "" ]]; then
     VERSION="$GITHUB_REF_NAME"
 fi
 

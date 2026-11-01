@@ -659,6 +659,21 @@ def scope_lookup(table, scope):
     return None
 
 
+def lookup(table, scope, label, what):
+    """Like scope_lookup, but a scope the table can't map is an error: the
+    converter's table needs an entry for it. No scope at all (a rule or capture
+    without a name) has nothing to color:
+      ""                          -> None
+      "markup.bold.x" (unlisted)  -> ConvertError "<label>: no <what> for scope 'markup.bold.x'"
+    """
+    if not scope:
+        return None
+    found = scope_lookup(table, scope)
+    if found is None:
+        raise ConvertError(f"{label}: no {what} for scope {scope!r}")
+    return found
+
+
 def main(description, convert):
     """A converter's command line: reads the grammar named on it, writes
     convert(Grammar) to stdout, and exits with "error: ..." on a ConvertError."""

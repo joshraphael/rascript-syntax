@@ -319,35 +319,45 @@ def render_capture(root, target):
 # whatever colorscheme the user has, like Vim's built-in syntax files.
 # --------------------------------------------------------------------------
 
-# Scope prefix -> Vim highlight group (see :help group-name). The longest
-# prefix that matches wins, e.g. for "constant.numeric.hexadecimal.rascript":
-#   constant.numeric.hexadecimal  (not listed)
-#   constant.numeric              -> Number   <- used
-#   constant                      -> Constant (shorter, so ignored)
+# Scope prefix -> Vim highlight group (see :help group-name), one entry for
+# each scope in the grammar, so a new scope is an error until it is added
+# here. A scope maps by its longest listed prefix, so the .rascript ending
+# isn't needed: "constant.numeric.decimal.rascript" -> Number.
 SCOPE_MAP = {
-    "comment": "Comment", "punctuation.definition.comment": "Comment",
-    "string": "String", "punctuation.definition.string": "String",
-    "constant": "Constant", "constant.numeric": "Number", "constant.character": "Character",
-    "constant.character.escape": "SpecialChar", "constant.language.boolean": "Boolean",
-    "keyword": "Keyword", "keyword.control": "Statement", "keyword.operator": "Operator",
-    "keyword.other": "PreProc", "storage": "StorageClass", "storage.type": "Type",
-    "entity.name": "Identifier", "entity.name.function": "Function", "entity.name.class": "Type",
-    "entity.name.type": "Type", "entity.name.tag": "Tag", "entity.other.attribute-name": "Identifier",
-    "support": "Special", "support.function": "Function", "support.class": "Type",
-    "support.type": "Type", "support.constant": "Constant",
-    "variable": "Identifier", "variable.language": "Special",
-    "punctuation": "Delimiter", "punctuation.definition.template-expression": "Special",
-    "punctuation.section.embedded": "Special", "invalid": "Error",
-    "markup.heading": "Title", "markup.underline": "Underlined", "meta.preprocessor": "PreProc",
+    "variable.other": "Identifier",
+    "keyword.control": "Statement",
+    "variable.language.this": "Special",
+    "constant.language.boolean": "Boolean",
+    "constant.numeric.decimal": "Number",
+    "constant.numeric.hexadecimal": "Number",
+    "keyword.class": "Keyword",
+    "entity.name.class": "Type",
+    "keyword.function": "Keyword",
+    "entity.name.function": "Function",
+    "entity.name.function.call": "Function",
+    "string.quoted.double": "String",
+    "comment.line.double-slash": "Comment", "punctuation.definition.comment.single": "Comment",
+    "comment.block": "Comment", "punctuation.definition.comment.block": "Comment",
+    "keyword.other.id": "PreProc",
+    "constant.numeric.id": "Number",
+    "keyword.other.version": "PreProc",
+    "constant.numeric.version": "Number",
+    "punctuation.definition.template-expression": "Special",
+    "constant.character.escape": "SpecialChar",
+    "variable.other.assignment": "Identifier",
+    "variable.parameter": "Identifier",
+    "support.function": "Function",
+    "variable.parameter.function-call": "Identifier",
 }
 
 
-def scope_to_vim(scope):
-    """Returns the Vim group for a scope, or None if no prefix is in SCOPE_MAP.
+def scope_to_vim(scope, label):
+    """Returns the Vim group for a scope, None for no scope, and a
+    ConvertError for a scope not in SCOPE_MAP:
       "constant.numeric.decimal.rascript" -> "Number"
-      "meta.something.rascript"           -> None
+      "markup.bold.rascript"              -> ConvertError
     """
-    return tmgrammar.scope_lookup(SCOPE_MAP, scope)
+    return tmgrammar.lookup(SCOPE_MAP, scope, label, "Vim group")
 
 
 def camel(key):
@@ -403,9 +413,9 @@ class Converter:
                 out.extend(self.contains(p.patterns))
         return out
 
-    def link(self, group, scope):
+    def link(self, group, scope, label):
         """Records that a rule's group should be colored like its scope."""
-        vim = scope_to_vim(scope)
+        vim = scope_to_vim(scope, label)
         if vim:
             self.highlight_links.append((group, vim))
 
@@ -445,13 +455,13 @@ class Converter:
                 raise ConvertError(f"{regex.label}: capture {key}: {e}") from None
             groups.append(f"{prefix}{key}")
             out.append(f"syntax match {groups[-1]} {pat} contained")
-            self.link(groups[-1], cap["name"])
+            self.link(groups[-1], cap["name"], f"{regex.label}: capture {key}")
         return whole, groups, self.pattern(node, icase)
 
     def emit_match(self, rule, g, contained, caps_out):
         """A match rule -> one syntax match line (capture items go in caps_out)."""
         whole, groups, pat = self.captures(rule.match, rule.name, f"{g}_c", caps_out)
-        self.link(g, whole)
+        self.link(g, whole, rule.label)
         return [f"syntax match {g} {pat}" + (f" contains={','.join(groups)}" if groups else "") + contained]
 
     def emit_region(self, rule, g, contained, caps_out):
@@ -479,18 +489,18 @@ class Converter:
         if bgroups:
             body = g + "_body"
             lines.append(f"syntax match {g} {begin} contains={','.join(bgroups)} nextgroup={body}{contained}")
-            self.link(g, bwhole)
+            self.link(g, bwhole, rule.label)
             start, contained = "start=/" + ENGINE + r"\v%(\_.)@=/", " contained"
         else:
-            self.link(g + "_begin", bwhole)
+            self.link(g + "_begin", bwhole, rule.label)
             start = f"matchgroup={g}_begin start={begin}"
         ewhole, egroups, end = self.captures(rule.end, name, f"{g}_ec", [])
         if egroups:
             raise ConvertError(f"{rule.label}: end captures other than 0 are not supported")
-        self.link(g + "_end", ewhole)
+        self.link(g + "_end", ewhole, rule.label)
         members = self.contains(rule.patterns)
         # contentName colors only the body; name colors begin, body and end
-        self.link(body, rule.content_name or name)
+        self.link(body, rule.content_name or name, rule.label)
         # the region goes first so the begin match, defined after it, wins
         lines.insert(0, f"syntax region {body} {start} matchgroup={g}_end end={end}"
                         + (f" contains={','.join(members)}" if members else "") + contained)
