@@ -12,4 +12,4 @@ sed "s/_GRAMMAR_VERSION_/$VERSION/g" syntaxes/rascript.tmLanguage.json > gen/ras
 plistutil -f xml -i gen/rascript.tmLanguage.json -o gen/rascript.tmLanguage
 python3 scripts/tmlanguage2vim.py gen/rascript.tmLanguage.json > gen/rascript.vim
 python3 scripts/tmlanguage2npp.py gen/rascript.tmLanguage.json > gen/RAScript.xml
-sed "s/_GRAMMAR_VERSION_/$VERSION/g" syntaxes/rascript.js > gen/rascript.js
+python3 scripts/tmlanguage2hljs.py gen/rascript.tmLanguage.json > gen/rascript.js
