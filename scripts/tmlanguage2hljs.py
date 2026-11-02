@@ -14,10 +14,21 @@
 #   a named capture that isn't one of the regex's top-level items (see split)
 #   a pattern list that includes $self along with other patterns, except as
 #     the last pattern of a repository entry (it is pushed in at the end)
+#   top-level patterns other than a single include of a pattern list (that
+#     list becomes STATEMENTS, which $self stands for)
+#   repository entries that include each other in a cycle, or an entry that
+#     includes itself: each is a const, which can't be used before its line
 #   scopes missing from SCOPES
 
 import tmgrammar
 from tmgrammar import SELF, ConvertError
+
+# the file header's fields; the grammar gives the version, and the language
+# name when it has one
+LANGUAGE = "RAScript"
+AUTHOR = "Joshua Raphael"
+DESCRIPTION = "Syntax grammar for RAScript, a RetroAchievements.org DSL"
+CATEGORY = "syntax"
 
 # --------------------------------------------------------------------------
 # Regex writing: highlight.js compiles regexes with the m and u flags
@@ -271,3 +282,88 @@ class Converter:
         patterns = entry.patterns
         spread = bool(patterns) and patterns[-1].kind == "include" and self.ref(patterns[-1]) == self.statements
         return self.modes(patterns[:len(patterns) - spread], 2), spread
+
+    # ----------------------------------------------------------------------
+    # Writing the file
+    # ----------------------------------------------------------------------
+
+    def refs(self, pattern):
+        """The constants a pattern references or spreads, other than
+        STATEMENTS (which is declared first, so any mode can use it)."""
+        if pattern.kind == "include":
+            return {self.ref(pattern)} - {self.statements}
+        return set().union(*(self.refs(p) for p in pattern.patterns))
+
+    def order(self):
+        """The repository keys other than STATEMENTS' in the order their
+        constants are written: TextMate order, but a constant waits until
+        every constant it uses is written (JavaScript can't use a const before
+        its line). Each time, the first key whose constants are all written
+        goes next:
+          a (uses c), b, c  -> b, c, a
+        """
+        keys = [k for k in self.grammar.repository if constant(k) != self.statements]
+        refs = {k: self.refs(self.grammar.repository[k]) for k in keys}
+        done, out = set(), []
+        while keys:
+            ready = next((k for k in keys if refs[k] <= done), None)
+            if ready is None:
+                raise ConvertError(f"{', '.join('#' + k for k in keys)}: can't be written in order, since some of "
+                                   "them include each other in a cycle (JavaScript can't use a const before its line)")
+            keys.remove(ready)
+            done.add(constant(ready))
+            out.append(ready)
+        return out
+
+    def convert(self):
+        if not self.statements:
+            raise ConvertError("patterns: the top-level patterns must be a single include")
+        top = self.grammar.repository[self.grammar.patterns.patterns[0].target]
+        if top.is_rule:
+            raise ConvertError(f"{top.label}: the entry the top-level patterns include must be a pattern list")
+        version = self.grammar.raw.get("version")
+        out = ["/*",
+               f"Language: {self.grammar.raw.get('name', LANGUAGE)}",
+               f"Author: {AUTHOR}",
+               f"Description: {DESCRIPTION}",
+               f"Category: {CATEGORY}"]
+        out += [f"Version: {version}"] if version else []
+        out += ["*/", "",
+                "export default function(hljs) {",
+                "    // the top-level modes, like the TextMate grammar's statements, so a mode can",
+                "    // include them the way a TextMate rule includes $self",
+                f"    const {self.statements} = [];", "",
+                "    // The modes below mirror the TextMate grammar's rules. Their regexes are the",
+                "    // TextMate ones in JavaScript form: \\w is [\\p{L}\\p{M}\\p{N}\\p{Pc}] and \\b a",
+                "    // lookaround on it (JavaScript's are ASCII only), and \\h is [0-9a-fA-F].",
+                "    // highlight.js compiles them with the m and u flags (unicodeRegex). A TextMate",
+                "    // capture is a part of a multi-part match here, with its own scope"]
+        spreads = []
+        for key in self.order():
+            comment = self.grammar.repository[key].comment
+            lines, spread = self.entry(key)
+            out += [f"    // {comment}"] * bool(comment)
+            out += [f"    const {constant(key)} = ["] + lines + ["    ];"] if lines else [f"    const {constant(key)} = [];"]
+            if spread:
+                spreads.append(constant(key))
+        out += ["",
+                "    // filled in last, once every mode is defined: STATEMENTS, then each list",
+                "    // that includes it",
+                f"    {self.statements}.push("] + self.modes(top.patterns, 2) + ["    );"]
+        out += [f"    {name}.push(...{self.statements});" for name in spreads]
+        out += ["    return {",
+                "        case_insensitive: false,",
+                "        unicodeRegex: true,",
+                f"        contains: {self.statements}",
+                "    }",
+                "}"]
+        return "\n".join(out) + "\n"
+
+
+def main():
+    tmgrammar.main("Convert a TextMate grammar into a highlight.js language (rascript.js), written to stdout.",
+                   lambda grammar: Converter(grammar).convert())
+
+
+if __name__ == "__main__":
+    main()
