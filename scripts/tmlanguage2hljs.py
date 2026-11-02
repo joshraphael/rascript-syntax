@@ -87,6 +87,11 @@ def literal(node, label):
 # and a relevance, which highlightAuto adds up to guess a file's language. A
 # mode's relevance is the highest of the scopes in its name and captures. The
 # longest scope prefix that matches wins (see tmgrammar.scope_lookup).
+#
+# Relevances follow highlight.js's own languages: 10 for something only
+# RAScript has, 1 for things typical of it, and 0 for things most languages
+# have (variables, strings, numbers, comments, if/for/return), which would
+# make other files look like RAScript
 # --------------------------------------------------------------------------
 
 SCOPES = {
@@ -96,26 +101,24 @@ SCOPES = {
     "constant.language.boolean": ("literal", 0),
     "constant.numeric.decimal": ("number", 0),
     "constant.numeric.hexadecimal": ("number", 0),
-    "keyword.class": ("keyword", 0),
-    "entity.name.class": ("title.class", 0),
-    "keyword.function": ("keyword", 0),
-    "entity.name.function": ("title.function", 0),
+    "keyword.class": ("keyword", 1),
+    "entity.name.class": ("title.class", 1),
+    "keyword.function": ("keyword", 1),
+    "entity.name.function": ("title.function", 1),
     "entity.name.function.call": ("title.function.invoke", 0),
     "string.quoted.double": ("string", 0),
     "comment.line.double-slash": ("comment", 0), "punctuation.definition.comment.single": ("comment", 0),
     "comment.block": ("comment", 0), "punctuation.definition.comment.block": ("comment", 0),
-    "keyword.other.id": ("keyword", 0),
+    "keyword.other.id": ("keyword", 10),
     "constant.numeric.id": ("number", 0),
-    "keyword.other.version": ("keyword", 0),
+    "keyword.other.version": ("keyword", 10),
     "constant.numeric.version": ("number", 0),
     "punctuation.definition.template-expression": ("template-variable", 0),
     "constant.character.escape": ("char.escape", 0),
     "variable.other.assignment": ("variable", 0),
-    "variable.parameter": ("params", 0),
-    # built-in calls are what tell RAScript apart from JavaScript, so
-    # highlightAuto picks RAScript for a file that has them
-    "support.function": ("built_in", 10),
-    "variable.parameter.function-call": ("attr", 0),
+    "variable.parameter": ("params", 1),
+    "support.function": ("built_in", 20),
+    "variable.parameter.function-call": ("attr", 1),
 }
 
 

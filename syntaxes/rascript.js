@@ -90,7 +90,7 @@ export default function(hljs) {
         {
             scope: 'attr',
             match: /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(?!\d)[\p{L}\p{M}\p{N}\p{Pc}]+(?=[\t ]*=(?![=>]))/,
-            relevance: 0
+            relevance: 1
         }
     ];
     const LAMBDAS = [
@@ -102,7 +102,7 @@ export default function(hljs) {
                 {
                     scope: 'params',
                     match: /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(?!\d)[\p{L}\p{M}\p{N}\p{Pc}]+/,
-                    relevance: 0
+                    relevance: 1
                 }
             ],
             relevance: 0
@@ -111,7 +111,7 @@ export default function(hljs) {
         {
             scope: 'params',
             match: /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(?!\d)[\p{L}\p{M}\p{N}\p{Pc}]+(?=[\t ]*=>)/,
-            relevance: 0
+            relevance: 1
         }
     ];
     // matched ( ) pairs, so a region containing them can't end on their ) or on a , inside them. The contents are highlighted as usual
@@ -145,20 +145,20 @@ export default function(hljs) {
         {
             scope: { 1: 'keyword', 3: 'title.class' },
             match: [/(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))class(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))/, /[\t ]*/, /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(?!\d)[\p{L}\p{M}\p{N}\p{Pc}]+/],
-            relevance: 0
+            relevance: 1
         }
     ];
     const HEADER = [
         {
             scope: { 1: 'comment', 2: 'keyword', 3: 'comment', 4: 'number' },
             match: [/^\/\/[\t ]*/, /#ID/, /[\t ]*=[\t ]*/, /\d+$/],
-            relevance: 0
+            relevance: 10
         },
         // only the RATools release versions listed in https://github.com/Jamiras/RATools/blob/master/Source/Data/Version.cs (0.73-0.79, 1.0-1.4, 1.3.1, 1.4.1, 1.4.2), optionally padded with .0 up to the 4 parts RATools parses (1.0.0.0 is 1.0).
         {
             scope: { 1: 'comment', 2: 'keyword', 3: 'comment', 4: 'number' },
             match: [/^\/\/[\t ]*/, /#MinimumVersion/, /[\t ]*=[\t ]*/, /(?:(?:0\.7[3-9]|1\.[0-4])(?:\.0){0,2}|(?:1\.3\.1|1\.4\.[12])(?:\.0)?)$/],
-            relevance: 0
+            relevance: 10
         }
     ];
     const COMMENTS = [
@@ -194,10 +194,10 @@ export default function(hljs) {
                 {
                     scope: 'params',
                     match: /(?:(?<=[\p{L}\p{M}\p{N}\p{Pc}])(?![\p{L}\p{M}\p{N}\p{Pc}])|(?<![\p{L}\p{M}\p{N}\p{Pc}])(?=[\p{L}\p{M}\p{N}\p{Pc}]))(?!\d)[\p{L}\p{M}\p{N}\p{Pc}]+/,
-                    relevance: 0
+                    relevance: 1
                 }
             ],
-            relevance: 0
+            relevance: 1
         }
     ];
     const FUNCTION_NAMES = [
@@ -207,7 +207,7 @@ export default function(hljs) {
             beginScope: { 1: 'built_in' },
             end: /\)/,
             contains: CALL_ARGUMENTS,
-            relevance: 10
+            relevance: 20
         },
         // a call to any other function, including methods named like built-ins (this.prev()). A separate rule from the built-ins, so neither needs to exclude the other
         {
